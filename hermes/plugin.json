@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "box",
+  "version": "0.1.0",
+  "description": "Give your agent a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, around the clock, while your own machine stays free.",
+  "author": {
+    "name": "Simular",
+    "url": "https://simular.ai"
+  },
+  "homepage": "https://box.simular.ai",
+  "repository": "https://github.com/simular-ai/box-plugin",
+  "license": "MIT",
+  "keywords": ["computer-use", "browser-automation", "desktop-automation", "cloud-computer", "mcp"],
+  "extensions": {
+    "com.nousresearch.hermes": {
+      "config_schema": {
+        "box_token": {
+          "type": "secret",
+          "env": "BOX_TOKEN",
+          "description": "box personal key (cb_...) from https://box.simular.ai/keys"
+        }
+      }
+    }
+  }
+}
