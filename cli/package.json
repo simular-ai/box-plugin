@@ -1,0 +1,51 @@
+{
+  "name": "@simular-ai/box",
+  "version": "0.1.0",
+  "description": "Connect box by Simular (a cloud computer your AI agent drives over MCP) to Claude Code, Codex, Cursor, OpenCode, Hermes, OpenClaw and more in one command.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "simular-box": "bin/simular-box.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "test": "node --test",
+    "prepack": "cp ../LICENSE LICENSE"
+  },
+  "dependencies": {
+    "@clack/prompts": "0.11.0",
+    "jsonc-parser": "3.3.1",
+    "smol-toml": "1.9.1",
+    "yaml": "2.9.1"
+  },
+  "homepage": "https://box.simular.ai/install",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simular-ai/box-plugin.git",
+    "directory": "cli"
+  },
+  "bugs": "https://github.com/simular-ai/box-plugin/issues",
+  "keywords": [
+    "mcp",
+    "box",
+    "simular",
+    "computer-use",
+    "claude-code",
+    "codex",
+    "cursor",
+    "opencode",
+    "hermes",
+    "openclaw"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

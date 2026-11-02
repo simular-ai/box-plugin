@@ -1,0 +1,36 @@
+name: Release CLI
+
+# Push a tag `cli-vX.Y.Z` that matches cli/package.json's version. The workflow tests the CLI and
+# publishes @simular-ai/box to npm with provenance, then creates a GitHub release.
+# Needs the repository secret NPM_TOKEN (an npm automation token with publish rights on @simular-ai).
+on:
+  push:
+    tags: ['cli-v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write # npm provenance
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Tag matches cli/package.json
+        run: test "cli-v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm ci
+      - run: npm test
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "npx @simular-ai/box connect. See cli/README.md." --latest=false

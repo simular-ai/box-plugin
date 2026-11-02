@@ -1,0 +1,19 @@
+# Codex config written by hand
+model = "gpt-5"
+
+[mcp_servers.docs]
+command = "npx"
+args = ["docs-mcp"] # keep this comment
+
+[mcp_servers.box]
+url = "https://old.example.com/mcp"
+bearer_token_env_var = "OLD"
+
+[mcp_servers.box.tools.shell]
+approval_mode = "approve"
+
+[mcp_servers."box-control"]
+url = "https://relay.simular.cloud/control"
+
+[profiles.fast]
+model = "gpt-5-mini"
