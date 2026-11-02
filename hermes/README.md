@@ -11,14 +11,18 @@ This folder is a portable Agent Plugins v1 package (`plugin.json`, `mcp.json`, `
    BOX_TOKEN=cb_your_key
    ```
 
-3. Install and enable the plugin, then reload MCP servers:
+3. Install the plugin into your profile's plugin folder, enable it, and restart the gateway so it picks up the key:
 
    ```bash
-   hermes plugins install simular-ai/box-plugin --subdir hermes
+   git clone https://github.com/simular-ai/box-plugin /tmp/box-plugin
+   cp -R /tmp/box-plugin/hermes ~/.hermes/plugins/box     # per profile: ~/.hermes/profiles/<name>/plugins/box
    hermes plugins enable box
+   hermes gateway restart
    ```
 
-   Then `/reload-mcp` in a session. box's tools show up from the `box` server, and the `box` skill tells the agent how to use them.
+   `hermes plugins install` takes a catalog name, a Git URL or `owner/repo`, not a folder inside a repo, so until box is in the Hermes plugin catalog the folder is copied by hand. Check it with `hermes plugins validate ~/.hermes/plugins/box`. box's tools show up from the `box` server, and the `box` skill tells the agent how to use them.
+
+   If you change the key later, run `hermes gateway restart`: a running gateway keeps the old value and parks the server.
 
 **On a desktop with a browser**, you can sign in instead of using a key: `hermes mcp add box --url https://relay.simular.cloud/mcp --auth oauth`, then `hermes mcp login box`. A server you add this way overrides the plugin's entry of the same name. On a server, prefer the key: when an OAuth refresh token expires, Hermes parks the server until someone signs in again by hand.
 
