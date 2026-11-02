@@ -1,6 +1,6 @@
 # box by Simular for DeepSeek Harness: adds the box MCP server to a dsh profile.
 # The model sees box's tools as mcp__box__<tool>.
-# BOX_TOKEN: a box access key (cb_...) from https://box.simular.ai/tokens.
+# BOX_TOKEN: a box personal key (cb_...) from https://box.simular.ai/keys.
 # BOX_MCP_URL overrides the endpoint (e.g. staging).
 
 - insert:
