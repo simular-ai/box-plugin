@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "box": {
+      "type": "http",
+      "url": "https://relay.simular.cloud/mcp"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+name: Release dsh plugin
+
+# Push a tag `dsh-vX.Y.Z` that matches dsh/package.json's version. The packed plugin is attached
+# to the GitHub release as dsh-box.tgz, so
+# https://github.com/simular-ai/box-plugin/releases/latest/download/dsh-box.tgz stays stable.
+on:
+  push:
+    tags: ['dsh-v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Tag matches dsh/package.json
+        run: test "dsh-v$(node -p "require('./dsh/package.json').version")" = "$GITHUB_REF_NAME"
+      - name: Pack
+        run: |
+          file=$(npm pack ./dsh --silent)
+          mv "$file" dsh-box.tgz
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dsh-box.tgz --title "$GITHUB_REF_NAME" --notes "DeepSeek Harness plugin for box. See dsh/README.md." --latest

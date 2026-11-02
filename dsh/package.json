@@ -1,0 +1,14 @@
+{
+  "name": "@simular/dsh-box",
+  "version": "0.1.0",
+  "description": "box by Simular: a cloud desktop your agent drives over MCP",
+  "license": "MIT",
+  "files": [
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

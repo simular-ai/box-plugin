@@ -1,0 +1,16 @@
+# box by Simular for DeepSeek Harness: adds the box MCP server to a dsh profile.
+# The model sees box's tools as mcp__box__<tool>.
+# BOX_TOKEN: a box access key (cb_...) from https://box.simular.ai/tokens.
+# BOX_MCP_URL overrides the endpoint (e.g. staging).
+
+- insert:
+    - id: mcp-box
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: box
+        transport: streamable-http
+        url: !!js process.env.BOX_MCP_URL || 'https://relay.simular.cloud/mcp'
+        headers:
+          Authorization: !!js '`Bearer ${process.env.BOX_TOKEN ?? ""}`'
+        # Waking a box or taking a screenshot can outlast the 60 s default.
+        toolCallTimeoutMs: 180000
