@@ -14,10 +14,13 @@ This folder is a Claude-format bundle (`.claude-plugin/plugin.json`, `.mcp.json`
 3. Install the plugin and check the connection:
 
    ```bash
-   openclaw plugins install git:github.com/simular-ai/box-plugin@main   # then pick the openclaw folder
-   openclaw plugins inspect box
-   openclaw mcp doctor box --probe
+   git clone https://github.com/simular-ai/box-plugin
+   openclaw plugins install ./box-plugin/openclaw --force --accept-capabilities
+   openclaw plugins inspect box     # Format: bundle, Bundle capabilities: skills, mcpServers
+   openclaw plugins doctor
    ```
+
+   Restart the Gateway. The plugin's `box` server connects when the Gateway starts; `openclaw mcp status` and `openclaw mcp probe` only list servers added with `openclaw mcp add`, not ones a plugin brings.
 
 **On a desktop with a browser**, you can sign in instead: `openclaw mcp add box --url https://relay.simular.cloud/mcp --transport streamable-http --auth oauth`, then `openclaw mcp login box`. On a server, prefer the key: OpenClaw drops a server whose OAuth credentials have expired until someone signs in again.
 
