@@ -8,6 +8,9 @@ import { mcpUrl, maskKey, DEFAULT_MCP_URL } from '../src/constants.js'
 import { parseWwwAuthenticate, probeEndpoint, checkKey } from '../src/probe.js'
 import { runDoctor } from '../src/cli.js'
 import { sandbox } from './helpers.js'
+import fs from 'node:fs'
+import { createContext } from '../src/context.js'
+import { findClient } from '../src/clients/index.js'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'simular-box.js')
 const KEY = 'cb_test_fake_key_123'
@@ -93,7 +96,9 @@ test('real CLI: key mode without a key fails clearly; with BOX_TOKEN it never pr
   const withKey = run(['connect', '--client', 'hermes', '--auth', 'key', '--yes'], sb, { BOX_TOKEN: KEY })
   assert.equal(withKey.status, 0, withKey.stderr)
   assert.ok(!(withKey.stdout + withKey.stderr).includes(KEY))
-  assert.match(sb.read('.hermes/.env'), new RegExp(`^MCP_BOX_API_KEY=${KEY}$`, 'm'))
+  // Hermes keeps its home in %LOCALAPPDATA%\\hermes on Windows and ~/.hermes elsewhere.
+  const hermesEnv = path.join(path.dirname(findClient('hermes').configLocation(createContext({ env: sb.env }))), '.env')
+  assert.match(fs.readFileSync(hermesEnv, 'utf8'), new RegExp(`^MCP_BOX_API_KEY=${KEY}$`, 'm'))
   const bad = run(['connect', '--client', 'hermes', '--auth', 'key', '--yes'], sb, { BOX_TOKEN: 'not-a-key' })
   assert.notEqual(bad.status, 0)
 })
