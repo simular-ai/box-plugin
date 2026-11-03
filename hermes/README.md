@@ -8,8 +8,10 @@ This folder is a portable Agent Plugins v1 package (`plugin.json`, `mcp.json`, `
 2. Add it to `~/.hermes/.env`:
 
    ```
-   BOX_TOKEN=cb_your_key
+   MCP_BOX_API_KEY=cb_your_key
    ```
+
+   `MCP_BOX_API_KEY` is the name Hermes's own `hermes mcp add --auth header` uses, and the same one `npx @simular-ai/box connect --client hermes --auth key` writes, so one key serves either install.
 
 3. Install the plugin into your profile's plugin folder, enable it, and restart the gateway so it picks up the key:
 

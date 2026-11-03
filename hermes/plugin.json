@@ -16,7 +16,7 @@
       "config_schema": {
         "box_token": {
           "type": "secret",
-          "env": "BOX_TOKEN",
+          "env": "MCP_BOX_API_KEY",
           "description": "box personal key (cb_...) from https://box.simular.ai/keys"
         }
       }

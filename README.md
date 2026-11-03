@@ -9,7 +9,7 @@ Most agents need no plugin: add the MCP server `https://relay.simular.cloud/mcp`
 | Claude Code and Cowork | [`claude/`](claude/) | OAuth, once in the browser | `/plugin marketplace add simular-ai/box-plugin`, then `/plugin install box@simular-box` |
 | DeepSeek Harness (dsh) | [`dsh/`](dsh/) | Personal key (`cb_...`) | [dsh/README.md](dsh/README.md) |
 | Any of Claude Code, Codex, Cursor, OpenCode, Hermes, OpenClaw, VS Code (and steps for Claude Desktop) | [`cli/`](cli/) | OAuth; personal key with `--auth key` for Hermes and OpenClaw | `npx @simular-ai/box connect` (check with `npx @simular-ai/box doctor`) |
-| Hermes Agent | [`hermes/`](hermes/) | Personal key (`cb_...`) in `BOX_TOKEN`; OAuth optional | [hermes/README.md](hermes/README.md) |
+| Hermes Agent | [`hermes/`](hermes/) | Personal key (`cb_...`) in `MCP_BOX_API_KEY`; OAuth optional | [hermes/README.md](hermes/README.md) |
 
 ## Adding an agent
 

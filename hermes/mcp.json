@@ -5,7 +5,7 @@
       "type": "streamable-http",
       "url": "https://relay.simular.cloud/mcp",
       "headers": {
-        "Authorization": "Bearer ${BOX_TOKEN}"
+        "Authorization": "Bearer ${MCP_BOX_API_KEY}"
       }
     }
   }

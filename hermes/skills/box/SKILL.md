@@ -5,7 +5,7 @@ description: Use box, a cloud Linux computer with Chrome and a shell, when a tas
 
 # Use box
 
-box is the user's own cloud Linux desktop. Its tools come from the `box` MCP server, which authenticates with the user's personal key in `BOX_TOKEN`. If box's tools fail with an authorization error, ask the user to create a key at https://box.simular.ai/keys and set `BOX_TOKEN`; never ask them to paste the key into chat. A sleeping box wakes on the first call, which can take a few seconds.
+box is the user's own cloud Linux desktop. Its tools come from the `box` MCP server, which authenticates with the user's personal key in `MCP_BOX_API_KEY`. If box's tools fail with an authorization error, ask the user to create a key at https://box.simular.ai/keys and set `MCP_BOX_API_KEY`; never ask them to paste the key into chat. A sleeping box wakes on the first call, which can take a few seconds.
 
 ## Pick the right tool
 
