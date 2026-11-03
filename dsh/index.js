@@ -24,8 +24,12 @@ export function apply(ctx) {
     const token = hit?.value?.trim()
     if (token) unprovide = ctx.provide('boxAuth', { authorization: `Bearer ${token}` })
   }
+  // Log why the key couldn't be read (never the key itself); otherwise mcp-box just waits on
+  // boxAuth with no reason shown.
+  const refreshLogged = () =>
+    refresh().catch((err) => ctx.logger?.warn('box: could not read BOX_TOKEN', err?.message))
   ctx.on('credentials/reference-updated', (ref) => {
-    if (ref === REF) void refresh()
+    if (ref === REF) void refreshLogged()
   })
-  void refresh()
+  void refreshLogged()
 }

@@ -1,8 +1,10 @@
 name: Release dsh plugin
 
 # Push a tag `dsh-vX.Y.Z` that matches dsh/package.json's version. The packed plugin is attached
-# to the GitHub release as dsh-box.tgz, so
-# https://github.com/simular-ai/box-plugin/releases/latest/download/dsh-box.tgz stays stable.
+# to the GitHub release as dsh-box.tgz. Link the versioned URL in docs and the portal
+# (https://github.com/simular-ai/box-plugin/releases/download/dsh-vX.Y.Z/dsh-box.tgz), never
+# releases/latest: pnpm caches what a tarball URL resolved to, so new contents behind the same
+# URL fail to install. `--latest` below only marks the release on GitHub.
 on:
   push:
     tags: ['dsh-v*']
