@@ -53,7 +53,7 @@ if (compare(version, newest) < 0) {
   console.log(`::notice::box-portal already has ${plugin} ${newest}; not moving it back to ${version}`)
   output(false, current)
 } else if (compare(version, current) === 0) {
-  console.log(`::notice::box-portal main already links ${plugin} ${version}`)
+  console.log(`::notice::box-portal already links ${plugin} ${version}`)
   output(false, current)
 } else {
   manifest[plugin] = version
