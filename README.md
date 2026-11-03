@@ -7,12 +7,12 @@ Most agents need no plugin: add the MCP server `https://relay.simular.cloud/mcp`
 | Agent | Folder | Sign-in | Install |
 | --- | --- | --- | --- |
 | Claude Code and Cowork | [`claude/`](claude/) | OAuth, once in the browser | `/plugin marketplace add simular-ai/box-plugin`, then `/plugin install box@simular-box` |
-| DeepSeek Harness (dsh) | [`dsh/`](dsh/) | Personal key (`cb_...`) | [dsh/README.md](dsh/README.md) |
+| DeepSeek Harness (dsh) | [`dsh/`](dsh/) | Personal key (`cb_...`), pasted on the plugin's page in Plugins | [dsh/README.md](dsh/README.md) |
 | Any of Claude Code, Codex, Cursor, OpenCode, Hermes, OpenClaw, VS Code (and steps for Claude Desktop) | [`cli/`](cli/) | OAuth; personal key with `--auth key` for Hermes and OpenClaw | `npx @simular-ai/box connect` (check with `npx @simular-ai/box doctor`) |
 
 ## Adding an agent
 
-Add a folder named after the agent with its own manifest, MCP config and, where the agent supports skills, a copy of `claude/skills/box/SKILL.md`. Point it at `https://relay.simular.cloud/mcp`. Use OAuth sign-in where the agent supports it; otherwise read a personal key from an environment variable, never from a file in the package. Add a row above.
+Add a folder named after the agent with its own manifest, MCP config and, where the agent supports skills, a copy of `claude/skills/box/SKILL.md`. Point it at `https://relay.simular.cloud/mcp`. Use OAuth sign-in where the agent supports it; otherwise read a personal key from an environment variable or the agent's own credentials store, never from a file in the package. Add a row above.
 
 ## Releasing
 
