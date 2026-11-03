@@ -48,6 +48,16 @@ export const WATCH_URL = 'https://box.simular.ai/box'
 export const INSTALL_URL = 'https://box.simular.ai/install'
 export const SUPPORT_EMAIL = 'support@simular.ai'
 
+// Shown after a successful connect, word for word. They start with "Use box to" so the model reads
+// "box" as this tool, not a layout box or Box.com. Keep in sync with box-portal
+// src/docs/content/mcp.md ("Once box is connected, try asking your AI"; the first one is
+// BOX_FIRST_PROMPT in src/lib/getting-started.ts).
+export const EXAMPLE_PROMPTS = [
+  'Use box to open Chrome, search Google for "Simular", and summarize the top 3 results.',
+  "Use box to open GitHub Trending and tell me what today's top 3 repositories do",
+  "Use box to go to news.ycombinator.com and give me today's top 5 stories in a table",
+]
+
 export function mcpUrl(env = process.env) {
   const override = (env.BOX_MCP_URL || '').trim()
   if (!override) return DEFAULT_MCP_URL
