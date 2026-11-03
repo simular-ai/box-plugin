@@ -52,6 +52,9 @@ export class Offloader {
     const bundle = path.join(stage, 'offload.bundle')
     const refs = []
     try {
+      if (runSync(['rsync', '--version'], { env: this.env }).status !== 0) {
+        findings.push(finding('rsync', 'block', 'rsync is not installed on this computer; offload copies the repo with it (macOS ships it; on Linux install the rsync package)'))
+      }
       findings.push(...(await localFindings(repo, { handover, optedIn: this.store.secrets(key), env: this.env })))
       fs.writeFileSync(excludes, repo.ignored().map((p) => '/' + escape(p) + '\n').join(''))
       if (!this.store.sizeConfirmed(key)) {

@@ -72,8 +72,11 @@ test('token store: 0600 file in a 0700 dir; BOX_TOKEN wins and is never written'
   const store = new TokenStore(dir, {})
   assert.equal(store.get('https://e'), null)
   store.set('https://e', 'cb_x', 'browser')
-  assert.equal(fs.statSync(store.file).mode & 0o777, 0o600)
-  assert.equal(fs.statSync(dir).mode & 0o777, 0o700)
+  if (process.platform !== 'win32') {
+    // Windows has no POSIX modes; the file sits in the user's profile
+    assert.equal(fs.statSync(store.file).mode & 0o777, 0o600)
+    assert.equal(fs.statSync(dir).mode & 0o777, 0o700)
+  }
   assert.deepEqual(store.get('https://e'), { token: 'cb_x', source: 'browser' })
   const env = new TokenStore(dir, { BOX_TOKEN: 'cb_env' })
   assert.deepEqual(env.get('https://e'), { token: 'cb_env', source: 'env' })

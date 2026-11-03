@@ -120,10 +120,17 @@ export async function login(ctx, flags, { stdin = process.stdin, stderr = proces
 export async function logout(ctx, flags, { stdout = process.stdout } = {}) {
   const endpoint = ctx.endpoint(flags.endpoint)
   const saved = ctx.tokens.saved(endpoint)
-  if (saved?.source === 'browser') await revoke(endpoint, saved.token).catch(() => {})
+  let note = ''
+  if (saved?.source === 'browser') {
+    try {
+      await revoke(endpoint, saved.token)
+    } catch (err) {
+      note = ` (the server did not revoke the device token: ${err.message}; revoke it under Keys -> Devices at https://box.simular.ai/keys)`
+    }
+  }
   ctx.tokens.remove(endpoint)
-  stdout.write('signed out\n')
-  return 0
+  stdout.write(`signed out${note}\n`)
+  return note ? 1 : 0
 }
 
 async function readSecret(stdin, stderr, prompt) {
