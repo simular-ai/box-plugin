@@ -38,7 +38,13 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dsh-box.tgz --title "$GITHUB_REF_NAME" --notes "DeepSeek Harness plugin for box. See dsh/README.md." --latest
+        # A re-run keeps the existing release, so the portal job below still runs.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME exists; keeping it."
+          else
+            gh release create "$GITHUB_REF_NAME" dsh-box.tgz --title "$GITHUB_REF_NAME" --notes "DeepSeek Harness plugin for box. See dsh/README.md." --latest
+          fi
 
   portal:
     needs: release
@@ -50,3 +56,4 @@ jobs:
       version: ${{ needs.release.outputs.version }}
     secrets:
       SIMULAR_CI_APP_PRIVATE_KEY: ${{ secrets.SIMULAR_CI_APP_PRIVATE_KEY }}
+      BOX_PORTAL_APP_PRIVATE_KEY: ${{ secrets.BOX_PORTAL_APP_PRIVATE_KEY }}

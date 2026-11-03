@@ -12,9 +12,13 @@ name: Bump box-portal
 # peter-evans/create-pull-request, so a re-run or the next release updates the same open PR. A
 # version never moves backwards, on main or on that open PR.
 #
-# Token: the simular-ci-deps GitHub App (org secret SIMULAR_CI_APP_PRIVATE_KEY, org variable
-# SIMULAR_CI_APP_ID), minted for box-portal only. A real run asks for contents + pull-requests
-# write; a dry run asks for contents read and nothing else.
+# Tokens, both minted for box-portal only:
+# - Dry runs: the org-wide simular-ci-deps app (org secret SIMULAR_CI_APP_PRIVATE_KEY, org
+#   variable SIMULAR_CI_APP_ID), asking for contents: read, which it already has everywhere.
+# - Real runs: a dedicated app installed on box-portal alone with Contents + Pull requests write
+#   (repo variable BOX_PORTAL_APP_CLIENT_ID, repo secret BOX_PORTAL_APP_PRIVATE_KEY, both on
+#   box-plugin only). Not simular-ci-deps: its key is visible to every org repo, so giving it write
+#   would let any org workflow write to any repo.
 
 on:
   workflow_call:
@@ -36,6 +40,8 @@ on:
     secrets:
       SIMULAR_CI_APP_PRIVATE_KEY:
         required: true
+      BOX_PORTAL_APP_PRIVATE_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       plugin:
@@ -131,22 +137,45 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "$plugin $version ($url), dry_run=$dry_run, box-portal@$portal_ref"
 
-      - name: Mint a box-portal token
-        id: app-token
+      - name: Mint a read-only box-portal token (dry run)
+        id: read-token
+        if: steps.release.outputs.dry_run == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ vars.SIMULAR_CI_APP_ID }}
           private-key: ${{ secrets.SIMULAR_CI_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: box-portal
-          permission-contents: ${{ steps.release.outputs.dry_run == 'true' && 'read' || 'write' }}
-          permission-pull-requests: ${{ steps.release.outputs.dry_run == 'true' && '' || 'write' }}
+          permission-contents: read
+
+      - name: The box-portal bump app is configured
+        if: steps.release.outputs.dry_run != 'true'
+        env:
+          CLIENT_ID: ${{ vars.BOX_PORTAL_APP_CLIENT_ID }}
+          HAS_KEY: ${{ secrets.BOX_PORTAL_APP_PRIVATE_KEY != '' }}
+        run: |
+          if [ -z "$CLIENT_ID" ] || [ "$HAS_KEY" != true ]; then
+            echo "::error::Set the BOX_PORTAL_APP_CLIENT_ID variable and BOX_PORTAL_APP_PRIVATE_KEY secret on box-plugin (see this file's header)." >&2
+            exit 1
+          fi
+
+      - name: Mint a box-portal write token
+        id: write-token
+        if: steps.release.outputs.dry_run != 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.BOX_PORTAL_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BOX_PORTAL_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: box-portal
+          permission-contents: write
+          permission-pull-requests: write
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: ${{ github.repository_owner }}/box-portal
           ref: ${{ steps.release.outputs.portal_ref }}
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.read-token.outputs.token || steps.write-token.outputs.token }}
           path: portal
           persist-credentials: false
 
@@ -154,14 +183,14 @@ jobs:
         id: set
         env:
           EVENT: ${{ github.event_name }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.read-token.outputs.token || steps.write-token.outputs.token }}
           PLUGIN: ${{ steps.release.outputs.plugin }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
           manifest=src/lib/plugin-versions.json
           if [ "$EVENT" = pull_request ] && [ ! -f "portal/$manifest" ]; then
-            # Only until box-portal#110 merges: a PR check can't fail on the other repo's order.
+            # Only until box-portal's manifest lands: a PR check can't fail on the other repo's merge order.
             echo "::warning::box-portal@main has no $manifest yet; nothing to dry-run against."
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -182,7 +211,7 @@ jobs:
         id: pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.read-token.outputs.token || steps.write-token.outputs.token }}
           path: portal
           base: main
           branch: box-plugin/${{ steps.release.outputs.plugin }}
@@ -196,7 +225,7 @@ jobs:
           body: |
             box-plugin released [`${{ steps.release.outputs.tag }}`](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag }}). This sets `${{ steps.release.outputs.plugin }}` in `src/lib/plugin-versions.json` from `${{ steps.set.outputs.current }}` to `${{ steps.release.outputs.version }}`, so the portal and `/install` link ${{ steps.release.outputs.url }}.
 
-            Opened by box-plugin's [release workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}); a later release updates this PR. It is not merged or deployed automatically: review, merge, then deploy as usual. The automation is tracked in #109.
+            Opened by box-plugin's [release workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}); a later release updates this PR. It is not merged or deployed automatically: review, merge, then deploy as usual. Part of #109.
 
       - name: Summary
         env:
