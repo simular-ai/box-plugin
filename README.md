@@ -9,7 +9,6 @@ Most agents need no plugin: add the MCP server `https://relay.simular.cloud/mcp`
 | Claude Code and Cowork | [`claude/`](claude/) | OAuth, once in the browser | `/plugin marketplace add simular-ai/box-plugin`, then `/plugin install box@simular-box` |
 | DeepSeek Harness (dsh) | [`dsh/`](dsh/) | Personal key (`cb_...`) | [dsh/README.md](dsh/README.md) |
 | Hermes Agent | [`hermes/`](hermes/) | Personal key (`cb_...`) in `BOX_TOKEN`; OAuth optional | [hermes/README.md](hermes/README.md) |
-| OpenClaw | [`openclaw/`](openclaw/) | Personal key (`cb_...`) in `BOX_TOKEN`; OAuth optional | [openclaw/README.md](openclaw/README.md) |
 
 ## Adding an agent
 
@@ -19,3 +18,4 @@ Add a folder named after the agent with its own manifest, MCP config and, where 
 
 - `claude/`: bump `version` in `claude/.claude-plugin/plugin.json`; Claude Code picks it up from the marketplace.
 - `dsh/`: bump `version` in `dsh/package.json`, then push a tag `dsh-vX.Y.Z`. The release workflow attaches `dsh-box.tgz`.
+- `hermes/`: bump `version` in `hermes/plugin.json`. Users copy the folder by hand until box is in the Hermes plugin catalog.
