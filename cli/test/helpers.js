@@ -16,7 +16,16 @@ export function sandbox({ env = {}, bins = {} } = {}) {
     const file = path.join(bin, name)
     fs.writeFileSync(file, `#!${process.execPath}\n${source}`, { mode: 0o755 })
   }
-  const fullEnv = { HOME: home, PATH: bin, ...env }
+  // On Windows, libuv copies USERPROFILE (and a few others) from the parent into a child env
+  // that lacks them, so point every home-like variable into the sandbox explicitly.
+  const fullEnv = {
+    HOME: home,
+    USERPROFILE: home,
+    APPDATA: path.join(home, 'AppData', 'Roaming'),
+    LOCALAPPDATA: path.join(home, 'AppData', 'Local'),
+    PATH: bin,
+    ...env,
+  }
   const ctx = createContext({ env: fullEnv, platform: 'linux' })
   const write = (rel, text, mode) => {
     const file = path.join(home, rel)

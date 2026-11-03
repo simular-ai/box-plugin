@@ -66,6 +66,15 @@ test('codex: rewrites only [mcp_servers.box] (and its subtables), keeps comments
   assert.match(sb.read('.codex/config.toml'), /# keep this comment/)
 })
 
+test('codex: keeps CRLF line endings', () => {
+  const sb = sandbox()
+  sb.write('.codex/config.toml', 'model = "gpt-5"\r\n\r\n[mcp_servers.box]\r\nurl = "https://old"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n')
+  client('codex').connect(sb.ctx)
+  assert.equal(sb.read('.codex/config.toml'), 'model = "gpt-5"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n\r\n[mcp_servers.box]\r\nurl = "https://relay.simular.cloud/mcp"\r\n')
+  client('codex').remove(sb.ctx)
+  assert.equal(sb.read('.codex/config.toml'), 'model = "gpt-5"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n')
+})
+
 test('codex: honours CODEX_HOME', () => {
   const sb = sandbox()
   const codexHome = path.join(sb.home, 'elsewhere')

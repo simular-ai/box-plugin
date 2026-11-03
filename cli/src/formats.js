@@ -25,9 +25,10 @@ export function parseJsonc(text, file = 'config') {
 export function setJsoncPath(text, jsonPath, value, file) {
   const base = text === null || text.trim() === '' ? '{}\n' : text
   parseJsonc(base, file)
-  const edits = jsonc.modify(base, jsonPath, value, FORMAT)
+  const eol = /\r\n/.test(base) ? '\r\n' : '\n'
+  const edits = jsonc.modify(base, jsonPath, value, { formattingOptions: { ...FORMAT.formattingOptions, eol } })
   let out = jsonc.applyEdits(base, edits)
-  if (!out.endsWith('\n')) out += '\n'
+  if (!out.endsWith('\n')) out += eol
   return out
 }
 
@@ -138,12 +139,12 @@ function splitDotted(key) {
   return parts
 }
 
-const HEADER = /^\s*\[(\[?)\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$/
+const HEADER = /^\s*\[(\[?)\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?\r?$/
 
 /** Remove `[table]` blocks whose key path starts with any of `prefixes` (arrays of key parts). */
 export function removeTomlTables(text, prefixes) {
   if (!text) return text
-  const lines = text.split('\n')
+  const lines = text.split('\n') // a CRLF line keeps its \r, which HEADER tolerates
   const out = []
   let dropping = false
   for (const line of lines) {
@@ -154,7 +155,11 @@ export function removeTomlTables(text, prefixes) {
     }
     if (!dropping) out.push(line)
   }
-  return out.join('\n')
+  // A dropped block at the end also drops the file's final newline: restore it.
+  const eol = /\r\n/.test(text) ? '\r\n' : '\n'
+  let result = out.join('\n').replace(/\r$/, '')
+  if (/\n$/.test(text) && !/\n$/.test(result) && result) result += eol
+  return result
 }
 
 const tomlString = (s) => JSON.stringify(s)
@@ -175,10 +180,12 @@ export function upsertTomlServer(text, name, fields, { legacy = [], file } = {})
       throw new Error(`${file} defines mcp_servers.${n} inline; remove it by hand, then run again`)
     }
   }
+  // Keep the file's line endings (CRLF on Windows-edited files).
+  const eol = /\r\n/.test(text || '') ? '\r\n' : '\n'
   const body = Object.entries(fields)
     .map(([k, v]) => `${k} = ${tomlString(v)}`)
-    .join('\n')
-  out = `${out.replace(/\s*$/, '')}${out.trim() ? '\n\n' : ''}[mcp_servers.${name}]\n${body}\n`
+    .join(eol)
+  out = `${out.replace(/\s*$/, '')}${out.trim() ? eol + eol : ''}[mcp_servers.${name}]${eol}${body}${eol}`
   const final = parseToml(out, file)
   if (!sameValue(final.mcp_servers?.[name], fields)) throw new Error(`could not update ${file} safely; nothing was written`)
   return out
@@ -188,7 +195,7 @@ export function removeTomlServers(text, names, { file } = {}) {
   if (!text) return text
   const doc = parseToml(text, file)
   if (!names.some((n) => doc.mcp_servers?.[n] !== undefined)) return text
-  const out = removeTomlTables(text, names.map((n) => ['mcp_servers', n])).replace(/\n{3,}/g, '\n\n')
+  const out = removeTomlTables(text, names.map((n) => ['mcp_servers', n])).replace(/(\r?\n){3,}/g, (m) => (m.includes('\r') ? '\r\n\r\n' : '\n\n'))
   const check = parseToml(out, file)
   for (const n of names) {
     if (check.mcp_servers?.[n] !== undefined) throw new Error(`${file} defines mcp_servers.${n} inline; remove it by hand`)

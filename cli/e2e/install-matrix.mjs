@@ -19,6 +19,13 @@ const client = findClient(id)
 if (!client) throw new Error(`unknown client ${id}`)
 
 const { home, env } = isolatedEnv()
+if (client.id === 'codex' && process.platform === 'win32') {
+  // On Windows, Codex finds the home folder through the OS profile API, not USERPROFILE, so a
+  // temp HOME alone would point it at the runner's real profile. CODEX_HOME is its own override,
+  // which the CLI honours too.
+  env.CODEX_HOME = path.join(home, '.codex')
+  fs.mkdirSync(env.CODEX_HOME, { recursive: true })
+}
 const ctx = createContext({ env })
 console.log(`isolated HOME: ${home}`)
 
