@@ -30,6 +30,8 @@ The command is `simular-box` (`box` belongs to box.com's CLI), so after `npm i -
 
 Pick apps without prompts with `--client cursor,codex --yes`; `--yes` alone picks every app found. `--dry-run` shows what would change.
 
+The CLI only changes or removes a server that points at box by Simular (`relay.simular.cloud`, its staging host, `mcp.box.simular.ai`, or your `BOX_MCP_URL`). If an app already has a different server named `box`, such as box.com's MCP server, `connect` stops without changing anything, and `remove` leaves it alone. To add box next to it, use `--name simular-box`. A symlinked config stays a symlink: the file it points to is updated.
+
 ## Sign-in
 
 Every app signs in with OAuth by default: the app opens a browser page, you sign in to box and click Approve. No key to copy.
@@ -41,7 +43,7 @@ Hermes and OpenClaw often run around the clock on a server, where an expired OAu
 BOX_TOKEN=cb_... npx @simular-ai/box connect --client hermes,openclaw --auth key
 ```
 
-Without `BOX_TOKEN`, an interactive run asks for the key with hidden input. The key is never accepted as a command-line argument and never printed. It goes only where the app reads secrets: `MCP_BOX_API_KEY` in `$HERMES_HOME/.env`, `BOX_TOKEN` in `~/.openclaw/.env` (both `0600`). The app config holds only a `${...}` reference to it. OpenClaw's Gateway reads `.env` only at start, and a running Hermes gateway keeps the old key, so connect restarts them when the key changes.
+Without `BOX_TOKEN`, an interactive run asks for the key with hidden input. The key is never accepted as a command-line argument and never printed. It goes only where the app reads secrets: `MCP_BOX_API_KEY` in `$HERMES_HOME/.env`, `BOX_TOKEN` in `~/.openclaw/.env` (both `0600`). The app config holds only a `${...}` reference to it. No backup is kept of those `.env` files, because a backup would keep an old or removed key on disk. OpenClaw's Gateway reads `.env` only at start, and a running Hermes gateway keeps the old key, so connect restarts them when the key changes.
 
 ## Doctor
 
@@ -80,5 +82,5 @@ Bump `version` in `package.json`, merge, then push a tag `cli-vX.Y.Z`. A `cli-vX
 One-time setup, done by an owner of the `@simular-ai` npm org:
 
 1. **Publish the first version by hand.** npm can only attach a trusted publisher to a package that already exists. `npm help trust` says: "Package must exist: The package you're configuring must already exist on the npm registry". From `cli/` on `main`, with 2FA: `npm publish --access public`. This version has no provenance, because provenance comes only from CI.
-2. **Add the trusted publisher.** Either on npmjs.com (package → Settings → Trusted Publisher) or with npm >= 11.10.0: `npm trust github @simular-ai/box --repo simular-ai/box-plugin --file publish-cli.yml`. The values are organization `simular-ai`, repository `box-plugin`, workflow `publish-cli.yml`, no environment.
+2. **Add the trusted publisher.** Either on npmjs.com (package → Settings → Trusted Publisher) or with npm >= 11.10.0: `npm trust github @simular-ai/box --repo simular-ai/box-plugin --file publish-cli.yml --env npm`. The values are organization `simular-ai`, repository `box-plugin`, workflow `publish-cli.yml`, environment `npm`.
 3. **Push the next tag within 2 days.** A new trusted-publisher configuration expires if its first publish doesn't happen within 2 days.

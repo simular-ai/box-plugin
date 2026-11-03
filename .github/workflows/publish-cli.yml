@@ -15,11 +15,14 @@ name: Publish CLI
 #   git tag cli-v<X.Y.Z> && git push origin cli-v<X.Y.Z>
 #
 # Auth: npm trusted publishing (OIDC). The publish job's `id-token: write` lets the npm CLI swap
-# a GitHub OIDC token for a short-lived publish token: no NPM_TOKEN secret. Requires the
-# trusted-publisher config on npmjs.com (package @simular-ai/box -> Settings -> Trusted
-# Publisher): organization "simular-ai", repository "box-plugin", workflow filename
-# "publish-cli.yml", no environment. npm only lets you configure it on a package that already
+# a GitHub OIDC token for a short-lived publish token, so no long-lived npm token is stored.
+# Requires the trusted-publisher config on npmjs.com (package @simular-ai/box -> Settings ->
+# Trusted Publisher): organization "simular-ai", repository "box-plugin", workflow filename
+# "publish-cli.yml", environment "npm". npm only lets you configure it on a package that already
 # exists, so the very first version is published once by hand (see cli/README.md).
+#
+# Gating: the publish job runs in the GitHub environment "npm" (add required reviewers there)
+# and refuses a tag whose commit is not on main. A tag ruleset on `cli-v*` limits who can push one.
 # The repo is public, so npm attaches a provenance attestation.
 #
 # TODO(layer 3): nightly run against the latest client versions plus a real agent task on a box.
@@ -236,6 +239,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/cli-v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: npm
     permissions:
       contents: write # create the GitHub Release
       id-token: write # npm trusted publishing (OIDC) and provenance
@@ -246,6 +250,15 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Tagged commit is on main
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main. Tag a commit on main." >&2
+            exit 1
+          fi
       # No `registry-url`: setup-node would write an .npmrc with `_authToken=${NODE_AUTH_TOKEN}`,
       # which shadows the OIDC handshake. Node 24 ships npm 11 (trusted publishing needs >= 11.5.1).
       - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0

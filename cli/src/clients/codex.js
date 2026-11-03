@@ -5,12 +5,14 @@
 // https://github.com/openai/codex/blob/main/codex-rs/config/src/mcp_types.rs
 import fs from 'node:fs'
 import path from 'node:path'
-import { LEGACY_SERVER_NAMES, SERVER_NAME } from '../constants.js'
+import { ForeignServerError, LEGACY_SERVER_NAMES } from '../constants.js'
 import { readText, updateFile } from '../fsutil.js'
 import { parseToml, removeTomlServers, upsertTomlServer } from '../formats.js'
 
 const home = (ctx) => ctx.env.CODEX_HOME || path.join(ctx.home, '.codex')
 const file = (ctx) => path.join(home(ctx), 'config.toml')
+const servers = (ctx) => parseToml(readText(file(ctx)), file(ctx)).mcp_servers || {}
+const ourLegacy = (ctx, map) => LEGACY_SERVER_NAMES.filter((n) => map[n] && ctx.ours(map[n].url))
 
 export default {
   id: 'codex',
@@ -28,15 +30,16 @@ export default {
 
   status(ctx) {
     const f = file(ctx)
-    const servers = parseToml(readText(f), f).mcp_servers || {}
-    const box = servers[SERVER_NAME]
+    const map = servers(ctx)
+    const box = map[ctx.name]
+    if (box && !ctx.ours(box.url)) return { entries: [], legacy: [], keyConfigured: false, foreign: { where: f, url: box.url || box.command } }
     const warnings = []
     if (box && (box.bearer_token_env_var || box.http_headers || box.env_http_headers)) {
       warnings.push('box has a bearer token or headers set; Codex then skips OAuth. Re-run connect to reset it')
     }
     return {
       entries: box ? [{ where: f, url: box.url, enabled: box.enabled !== false }] : [],
-      legacy: LEGACY_SERVER_NAMES.filter((n) => servers[n]),
+      legacy: ourLegacy(ctx, map),
       keyConfigured: false,
       warnings,
     }
@@ -44,23 +47,32 @@ export default {
 
   connect(ctx) {
     const f = file(ctx)
-    const res = updateFile(f, (text) => upsertTomlServer(text, SERVER_NAME, { url: ctx.url }, { legacy: LEGACY_SERVER_NAMES, file: f }), {
+    const map = servers(ctx)
+    const current = map[ctx.name]
+    if (current && !ctx.ours(current.url)) throw new ForeignServerError(f, ctx.name, current.url || current.command)
+    const res = updateFile(f, (text) => upsertTomlServer(text, ctx.name, { url: ctx.url }, { legacy: ourLegacy(ctx, map), file: f }), {
       dryRun: ctx.dryRun,
     })
     return {
-      actions: res.changed ? [`${ctx.dryRun ? 'would write' : 'wrote'} [mcp_servers.box] to ${f}`] : [],
+      actions: res.changed ? [`${ctx.dryRun ? 'would write' : 'wrote'} [mcp_servers.${ctx.name}] to ${f}`] : [],
       backups: res.backup ? [res.backup] : [],
-      next: ['Run `codex mcp login box`, sign in in the browser and click Approve.'],
+      next: [`Run \`codex mcp login ${ctx.name}\`, sign in in the browser and click Approve.`],
     }
   },
 
   remove(ctx) {
     const f = file(ctx)
-    const res = updateFile(f, (text) => removeTomlServers(text, [SERVER_NAME, ...LEGACY_SERVER_NAMES], { file: f }), { dryRun: ctx.dryRun })
+    const map = servers(ctx)
+    const names = [ctx.name, ...LEGACY_SERVER_NAMES].filter((n) => map[n] && ctx.ours(map[n].url))
+    const warnings = map[ctx.name] && !names.includes(ctx.name) ? [`left [mcp_servers.${ctx.name}] in ${f}: it is not box by Simular`] : []
+    // Drop the stored sign-in too, while Codex still knows the server (best effort).
+    if (names.includes(ctx.name) && !ctx.dryRun && ctx.which('codex')) ctx.run('codex', ['mcp', 'logout', ctx.name], { timeoutMs: 30000 })
+    const res = updateFile(f, (text) => removeTomlServers(text, names, { file: f }), { dryRun: ctx.dryRun })
     return {
-      actions: res.changed ? [`${ctx.dryRun ? 'would remove' : 'removed'} [mcp_servers.box] from ${f}`] : [],
+      actions: res.changed ? [`${ctx.dryRun ? 'would remove' : 'removed'} ${names.map((n) => `[mcp_servers.${n}]`).join(', ')} from ${f}`] : [],
       backups: res.backup ? [res.backup] : [],
-      next: res.changed ? ['To also drop the stored sign-in: `codex mcp logout box` (before removing) or revoke it at https://box.simular.ai/keys.'] : [],
+      warnings,
+      next: [],
     }
   },
 }

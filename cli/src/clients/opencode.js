@@ -21,5 +21,5 @@ export default jsonClient({
   entry: (ctx) => ({ type: 'remote', url: ctx.url, enabled: true }),
   bins: ['opencode'],
   dirs: (ctx) => [path.join(ctx.xdgConfig, 'opencode')],
-  next: ['Run `opencode mcp auth box`, sign in in the browser and click Approve.'],
+  next: (ctx) => [`Run \`opencode mcp auth ${ctx.name}\`, sign in in the browser and click Approve.`],
 })

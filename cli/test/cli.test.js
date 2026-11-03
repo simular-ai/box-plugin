@@ -49,7 +49,7 @@ test('probe: parses WWW-Authenticate and follows resource metadata', async () =>
 
 test('doctor: flags a stale URL, a legacy server and a rejected key, with fixes', async () => {
   const sb = sandbox()
-  sb.write('.cursor/mcp.json', JSON.stringify({ mcpServers: { box: { url: 'https://relay.simular.cloud/old' }, 'box-control': { url: 'x' } } }))
+  sb.write('.cursor/mcp.json', JSON.stringify({ mcpServers: { box: { url: 'https://relay.simular.cloud/old' }, 'box-control': { url: 'https://relay.simular.cloud/control' } } }))
   sb.write('.hermes/config.yaml', 'mcp_servers:\n  box:\n    url: https://relay.simular.cloud/mcp\n    headers:\n      Authorization: Bearer ${MCP_BOX_API_KEY}\n')
   sb.write('.hermes/.env', `MCP_BOX_API_KEY=${KEY}\n`)
   const report = await runDoctor(sb.ctx, {}, {

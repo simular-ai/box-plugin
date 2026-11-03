@@ -1,6 +1,6 @@
 // Tiny argument parser: no dependency for a handful of flags.
 const BOOLEAN = new Set(['yes', 'json', 'dry-run', 'help', 'version', 'all'])
-const VALUE = new Set(['client', 'auth'])
+const VALUE = new Set(['client', 'auth', 'name'])
 const ALIASES = { y: 'yes', h: 'help', v: 'version', c: 'client' }
 
 export function parseArgs(argv) {
@@ -24,7 +24,8 @@ export function parseArgs(argv) {
       else if (VALUE.has(name)) {
         if (value === undefined) value = argv[++i]
         if (value === undefined || value.startsWith('-')) throw new Error(`--${name} needs a value`)
-        if (name === 'auth') {
+        if (name === 'name') out.flags.name = value
+        else if (name === 'auth') {
           if (value !== 'oauth' && value !== 'key') throw new Error('--auth must be oauth or key')
           out.flags.auth = value
         } else out.flags[name] = [...(out.flags[name] || []), ...value.split(',').map((s) => s.trim()).filter(Boolean)]

@@ -3,7 +3,7 @@ import * as p from '@clack/prompts'
 import { parseArgs } from './args.js'
 import { createContext } from './context.js'
 import { CLIENTS, findClient } from './clients/index.js'
-import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, looksLikeKey } from './constants.js'
+import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, looksLikeKey, validServerName } from './constants.js'
 import { probeEndpoint, checkKey } from './probe.js'
 
 const VERSION = createRequire(import.meta.url)('../package.json').version
@@ -19,6 +19,7 @@ Clients: ${CLIENTS.map((c) => c.id).join(', ')}
 
 Options:
   -c, --client <ids>  Comma-separated client ids (default: pick from the detected ones)
+      --name <name>   Server name to use instead of "box" (when another "box" server exists)
       --auth key      Hermes and OpenClaw: use a personal key instead of OAuth (for
                       always-on servers with no browser). Other apps always use OAuth.
   -y, --yes           Don't ask; with no --client, use every detected client
@@ -41,7 +42,7 @@ export async function main(argv, { env = process.env, stdout = process.stdout, i
     stdout.write(HELP)
     return args.command || args.flags.help ? 0 : 1
   }
-  const ctx = createContext({ env, dryRun: Boolean(args.flags['dry-run']) })
+  const ctx = createContext({ env, dryRun: Boolean(args.flags['dry-run']), serverName: args.flags.name ? validServerName(args.flags.name) : undefined })
   const interactive = isTTY && !args.flags.yes && !args.flags.json
   switch (args.command) {
     case 'connect':
@@ -229,6 +230,7 @@ async function remove(ctx, flags, { interactive }) {
       const res = await client.remove(ctx)
       p.log.success(`${client.name}: ${res.actions.length ? res.actions.join('; ') : 'nothing to remove'}`)
       for (const b of res.backups || []) p.log.message(`  backup: ${b}`)
+      for (const w of res.warnings || []) p.log.warn(`  ${w}`)
       for (const n of res.next || []) p.log.info(`  ${n}`)
     } catch (err) {
       failed++
@@ -263,11 +265,16 @@ export async function runDoctor(ctx, flags, { probe = probeEndpoint, check = che
       row.ok = true
       continue
     }
+    if (st.foreign) {
+      row.problems.push(`a server named "${ctx.name}" in ${st.foreign.where} points at ${st.foreign.url}, which is not box by Simular`)
+      row.fixes.push(`npx @simular-ai/box connect --client ${client.id} --name simular-box`)
+    }
     row.entries = st.entries.map(({ where, url, enabled }) => ({ where, url: url || null, enabled: enabled !== false }))
     row.configured = st.entries.length > 0
     const keyMode = st.entries.some((e) => e.mode === 'key')
-    const fix = `npx @simular-ai/box connect --client ${client.id}${keyMode ? ' --auth key' : ''}`
-    if (!row.configured) {
+    const nameFlag = ctx.name !== 'box' ? ` --name ${ctx.name}` : ''
+    const fix = `npx @simular-ai/box connect --client ${client.id}${nameFlag}${keyMode ? ' --auth key' : ''}`
+    if (!row.configured && !st.foreign) {
       row.problems.push('box is not configured')
       row.fixes.push(fix)
     }

@@ -64,11 +64,12 @@ test('codex: rewrites only [mcp_servers.box] (and its subtables), keeps comments
   assert.equal(doc.mcp_servers.box, undefined)
   assert.deepEqual(plain(doc.mcp_servers.docs), { command: 'npx', args: ['docs-mcp'] })
   assert.match(sb.read('.codex/config.toml'), /# keep this comment/)
+  assert.match(sb.read('.codex/config.toml'), /# Profiles: keep this comment with its table\n\[profiles\.fast\]/)
 })
 
 test('codex: keeps CRLF line endings', () => {
   const sb = sandbox()
-  sb.write('.codex/config.toml', 'model = "gpt-5"\r\n\r\n[mcp_servers.box]\r\nurl = "https://old"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n')
+  sb.write('.codex/config.toml', 'model = "gpt-5"\r\n\r\n[mcp_servers.box]\r\nurl = "https://relay.simular.cloud/old"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n')
   client('codex').connect(sb.ctx)
   assert.equal(sb.read('.codex/config.toml'), 'model = "gpt-5"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n\r\n[mcp_servers.box]\r\nurl = "https://relay.simular.cloud/mcp"\r\n')
   client('codex').remove(sb.ctx)
@@ -85,7 +86,7 @@ test('codex: honours CODEX_HOME', () => {
 
 test('codex: refuses an inline box table it cannot edit safely', () => {
   const sb = sandbox()
-  const text = 'mcp_servers = { box = { url = "https://x" } }\n'
+  const text = 'mcp_servers = { box = { url = "https://relay.simular.cloud/mcp-old" } }\n'
   sb.write('.codex/config.toml', text)
   assert.throws(() => client('codex').connect(sb.ctx), /inline/)
   assert.equal(sb.read('.codex/config.toml'), text)
@@ -177,7 +178,7 @@ test('openclaw: warns when the header references BOX_TOKEN but .env lacks it (th
 
 test('claude-code: default URL installs the plugin from the marketplace; override uses claude mcp add', { skip: NO_FAKE_BINS }, () => {
   const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
-  sb.write('.claude.json', JSON.stringify({ mcpServers: { 'box-control': { url: 'x' }, box: { type: 'http', url: DEFAULT_MCP_URL }, other: { command: 'y' } } }))
+  sb.write('.claude.json', JSON.stringify({ mcpServers: { 'box-control': { url: 'https://relay.simular.cloud/control' }, box: { type: 'http', url: DEFAULT_MCP_URL }, other: { command: 'y' } } }))
   client('claude').connect(sb.ctx)
   const state = () => JSON.parse(sb.read('fake-claude-state.json'))
   assert.deepEqual(state().plugins, { 'box@simular-box': { enabled: true } })
@@ -191,7 +192,8 @@ test('claude-code: default URL installs the plugin from the marketplace; overrid
   assert.equal(state().plugins['box@simular-box'].enabled, false)
   assert.equal(client('claude').status(ctx).entries.length, 1)
 
-  client('claude').remove(sb.ctx)
+  // remove runs with the same BOX_MCP_URL, so the staging host counts as ours.
+  client('claude').remove(ctx)
   assert.deepEqual(state().plugins, {})
   assert.equal(JSON.parse(sb.read('.claude.json')).mcpServers.box, undefined)
 })
@@ -211,4 +213,109 @@ test('dry run writes nothing for file-based clients', () => {
     assert.ok(res.actions[0].startsWith('would'), id)
   }
   assert.deepEqual(fs.readdirSync(sb.home), ['.bin'])
+})
+
+// ---- someone else's `box` (e.g. box.com's MCP server) is never ours to change or remove ----
+
+const BOX_COM = 'https://mcp.box.com'
+
+test('json clients: a foreign box blocks connect, survives remove, and --name installs next to it', () => {
+  const cases = [
+    ['cursor', '.cursor/mcp.json', ['mcpServers']],
+    ['opencode', '.config/opencode/opencode.json', ['mcp']],
+    ['vscode', '.config/Code/User/mcp.json', ['servers']],
+  ]
+  for (const [id, rel, container] of cases) {
+    const sb = sandbox()
+    const foreign = { url: BOX_COM, headers: { Authorization: 'Bearer box-com-token' } }
+    const original = JSON.stringify(container.reduceRight((acc, k) => ({ [k]: acc }), { box: foreign }), null, 2)
+    sb.write(rel, original)
+    assert.throws(() => client(id).connect(sb.ctx), (e) => e.foreign && /--name/.test(e.message), id)
+    assert.equal(sb.read(rel), original, `${id}: file untouched`)
+    const rm = client(id).remove(sb.ctx)
+    assert.equal(sb.read(rel), original, `${id}: remove leaves it`)
+    assert.match(rm.warnings.join(' '), /not box by Simular/)
+    assert.ok(client(id).status(sb.ctx).foreign, `${id}: status reports it`)
+
+    const named = { ...sb.ctx, name: 'simular-box' }
+    client(id).connect(named)
+    let doc = jsonc.parse(sb.read(rel))
+    let map = container.reduce((acc, k) => acc[k], doc)
+    assert.deepEqual(map.box, foreign, `${id}: foreign box kept`)
+    assert.equal(map['simular-box'].url, DEFAULT_MCP_URL)
+    client(id).remove(named)
+    doc = jsonc.parse(sb.read(rel))
+    map = container.reduce((acc, k) => acc[k], doc)
+    assert.deepEqual(Object.keys(map), ['box'])
+  }
+})
+
+test('codex: a foreign [mcp_servers.box] is left alone, fields and all', () => {
+  const sb = sandbox()
+  const original = `[mcp_servers.box]\nurl = "${BOX_COM}"\nbearer_token_env_var = "BOX_COM_TOKEN"\n`
+  sb.write('.codex/config.toml', original)
+  assert.throws(() => client('codex').connect(sb.ctx), /not box by Simular/)
+  client('codex').remove(sb.ctx)
+  assert.equal(sb.read('.codex/config.toml'), original)
+  client('codex').connect({ ...sb.ctx, name: 'simular-box' })
+  const doc = plain(TOML.parse(sb.read('.codex/config.toml')))
+  assert.deepEqual(doc.mcp_servers.box, { url: BOX_COM, bearer_token_env_var: 'BOX_COM_TOKEN' })
+  assert.deepEqual(doc.mcp_servers['simular-box'], { url: DEFAULT_MCP_URL })
+})
+
+test('codex: removing box keeps the comment above the next table', () => {
+  const sb = sandbox()
+  sb.write('.codex/config.toml', `model = "o3"\n\n[mcp_servers.box]\nurl = "${DEFAULT_MCP_URL}"\n\n# Linear: my work tracker (keep!)\n[mcp_servers.linear]\nurl = "https://mcp.linear.app/mcp"\n`)
+  client('codex').remove(sb.ctx)
+  assert.equal(sb.read('.codex/config.toml'), `model = "o3"\n\n# Linear: my work tracker (keep!)\n[mcp_servers.linear]\nurl = "https://mcp.linear.app/mcp"\n`)
+})
+
+test('hermes: a foreign box blocks connect and survives remove', () => {
+  const sb = sandbox()
+  const original = `mcp_servers:\n  box:\n    url: ${BOX_COM}\n    headers:\n      Authorization: Bearer \${BOX_COM_TOKEN}\n`
+  sb.write('.hermes/config.yaml', original)
+  assert.throws(() => client('hermes').connect(sb.ctx, { mode: 'oauth' }), /--name/)
+  client('hermes').remove(sb.ctx)
+  assert.equal(sb.read('.hermes/config.yaml'), original)
+})
+
+test('openclaw: a foreign box blocks connect and survives remove', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { openclaw: FAKE_OPENCLAW } })
+  sb.write('.openclaw/openclaw.json', JSON.stringify({ mcp: { servers: { box: { url: BOX_COM, transport: 'streamable-http' } } } }))
+  assert.throws(() => client('openclaw').connect(sb.ctx, { mode: 'oauth' }), /--name/)
+  const rm = client('openclaw').remove(sb.ctx)
+  assert.deepEqual(rm.actions, [])
+  assert.equal(JSON.parse(sb.read('.openclaw/openclaw.json')).mcp.servers.box.url, BOX_COM)
+})
+
+test('claude-code: a foreign user-scope box is never removed', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
+  sb.write('.claude.json', JSON.stringify({ mcpServers: { box: { type: 'http', url: BOX_COM } } }))
+  client('claude').connect(sb.ctx) // plugin route: its server is plugin:box:box, no clash
+  assert.equal(JSON.parse(sb.read('.claude.json')).mcpServers.box.url, BOX_COM)
+  const override = { ...sb.ctx, url: 'https://staging.relay.simular.cloud/mcp' }
+  assert.throws(() => client('claude').connect(override), /--name/)
+  client('claude').remove(sb.ctx)
+  assert.equal(JSON.parse(sb.read('.claude.json')).mcpServers.box.url, BOX_COM)
+  assert.ok(!JSON.parse(sb.read('fake-claude-state.json')).calls.some((c) => c.startsWith('mcp remove')))
+})
+
+test('a symlinked config stays a symlink and the target is updated', { skip: WIN && 'symlinks need admin on Windows' }, () => {
+  const sb = sandbox()
+  const real = sb.write('dotfiles/cursor-mcp.json', '{ "mcpServers": {} }\n')
+  fs.mkdirSync(path.join(sb.home, '.cursor'))
+  fs.symlinkSync(real, path.join(sb.home, '.cursor', 'mcp.json'))
+  client('cursor').connect(sb.ctx)
+  assert.ok(fs.lstatSync(path.join(sb.home, '.cursor', 'mcp.json')).isSymbolicLink())
+  assert.equal(JSON.parse(fs.readFileSync(real, 'utf8')).mcpServers.box.url, DEFAULT_MCP_URL)
+})
+
+test('key files: no backup keeps an old key after rotation or remove', () => {
+  const sb = sandbox()
+  client('hermes').connect(sb.ctx, { mode: 'key', key: KEY })
+  client('hermes').connect(sb.ctx, { mode: 'key', key: 'cb_rotated_key_456' })
+  client('hermes').remove(sb.ctx)
+  const leftovers = fs.readdirSync(path.join(sb.home, '.hermes')).filter((f) => f.startsWith('.env'))
+  assert.deepEqual(leftovers, ['.env'])
+  assert.equal(sb.read('.hermes/.env'), '')
 })

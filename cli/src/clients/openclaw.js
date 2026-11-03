@@ -12,7 +12,7 @@
 // https://github.com/openclaw/openclaw/blob/main/docs/help/environment.md
 import fs from 'node:fs'
 import path from 'node:path'
-import { KEY_ENV, LEGACY_SERVER_NAMES, SERVER_NAME } from '../constants.js'
+import { ForeignServerError, KEY_ENV, LEGACY_SERVER_NAMES } from '../constants.js'
 import { readText, updateFile } from '../fsutil.js'
 import { parseJsonc, readEnvValue, removeEnvValue, sameValue, upsertEnvValue } from '../formats.js'
 
@@ -82,8 +82,9 @@ export default {
 
   status(ctx) {
     if (!ctx.which('openclaw')) throw new Error('the `openclaw` command is not on PATH, so its config cannot be read')
-    const box = rawEntry(ctx, SERVER_NAME).entry
-    const legacy = LEGACY_SERVER_NAMES.filter((n) => rawEntry(ctx, n).entry !== undefined)
+    const box = rawEntry(ctx, ctx.name).entry
+    if (box && !ctx.ours(box.url)) return { entries: [], legacy: [], keyConfigured: false, foreign: { where: configFile(ctx), url: box.url || box.command } }
+    const legacy = LEGACY_SERVER_NAMES.filter((n) => ctx.ours(rawEntry(ctx, n).entry?.url))
     const header = box?.headers?.Authorization || box?.headers?.authorization
     const usesKeyRef = typeof header === 'string' && header.includes(`\${${KEY_ENV}}`)
     const literal = typeof header === 'string' && /^Bearer\s+cb_/.test(header) ? header.replace(/^Bearer\s+/, '') : undefined
@@ -103,6 +104,8 @@ export default {
 
   connect(ctx, { mode = 'oauth', key } = {}) {
     if (!ctx.which('openclaw')) throw new Error('the `openclaw` command is not on PATH; install OpenClaw first')
+    const current = rawEntry(ctx, ctx.name).entry
+    if (current && !ctx.ours(current.url)) throw new ForeignServerError(configFile(ctx), ctx.name, current.url || current.command)
     const actions = []
     const backups = []
     const next = []
@@ -110,10 +113,10 @@ export default {
     if (mode === 'key') {
       const useKey = key || readEnvValue(readText(envFile(ctx)), KEY_ENV)
       if (!useKey) throw new Error('a personal key is needed')
-      const r = updateFile(envFile(ctx), (text) => upsertEnvValue(text, KEY_ENV, useKey), { mode: 0o600, dryRun: ctx.dryRun })
+      const r = updateFile(envFile(ctx), (text) => upsertEnvValue(text, KEY_ENV, useKey), { mode: 0o600, dryRun: ctx.dryRun, secret: true })
       if (r.changed) {
         keyChanged = true
-        actions.push(`${ctx.dryRun ? 'would save' : 'saved'} the key as ${KEY_ENV} in ${envFile(ctx)}`)
+        actions.push(`${ctx.dryRun ? 'would save' : 'saved'} the key as ${KEY_ENV} in ${envFile(ctx)} (no backup of that file is kept: it holds keys)`)
       }
       if (r.backup) backups.push(r.backup)
     }
@@ -121,15 +124,14 @@ export default {
       mode === 'key'
         ? { url: ctx.url, transport: 'streamable-http', headers: { Authorization: KEY_REF } }
         : { url: ctx.url, transport: 'streamable-http', auth: 'oauth' }
-    const current = rawEntry(ctx, SERVER_NAME).entry
     let configChanged = false
     if (!sameValue(current, entry)) {
-      if (!ctx.dryRun) must(ctx.run('openclaw', ['mcp', 'set', SERVER_NAME, JSON.stringify(entry)], { timeoutMs: 60000 }), 'openclaw mcp set')
+      if (!ctx.dryRun) must(ctx.run('openclaw', ['mcp', 'set', ctx.name, JSON.stringify(entry)], { timeoutMs: 60000 }), 'openclaw mcp set')
       configChanged = true
-      actions.push(`${ctx.dryRun ? 'would set' : 'set'} mcp.servers.box (${mode === 'key' ? 'personal key from .env' : 'OAuth'}) via openclaw mcp set`)
+      actions.push(`${ctx.dryRun ? 'would set' : 'set'} mcp.servers.${ctx.name} (${mode === 'key' ? 'personal key from .env' : 'OAuth'}) via openclaw mcp set`)
     }
     for (const name of LEGACY_SERVER_NAMES) {
-      if (rawEntry(ctx, name).entry !== undefined) {
+      if (ctx.ours(rawEntry(ctx, name).entry?.url)) {
         if (!ctx.dryRun) ctx.run('openclaw', ['mcp', 'unset', name])
         actions.push(`removed old server ${name}`)
       }
@@ -143,7 +145,7 @@ export default {
       } else if (configChanged) ctx.run('openclaw', ['mcp', 'reload'], { timeoutMs: 30000 })
       if (keyChanged && !gatewayUp(ctx)) next.push('The key is read when the Gateway starts: `openclaw gateway start` (or restart it if it runs elsewhere).')
     }
-    if (mode === 'oauth') next.push('Run `openclaw mcp login box`, sign in in the browser and click Approve. On a server without a browser, use --auth key instead.')
+    if (mode === 'oauth') next.push(`Run \`openclaw mcp login ${ctx.name}\`, sign in in the browser and click Approve. On a server without a browser, use --auth key instead.`)
     return { actions, backups, next }
   },
 
@@ -151,15 +153,20 @@ export default {
     if (!ctx.which('openclaw')) throw new Error('the `openclaw` command is not on PATH')
     const actions = []
     const backups = []
-    for (const name of [SERVER_NAME, ...LEGACY_SERVER_NAMES]) {
-      if (rawEntry(ctx, name).entry !== undefined) {
-        if (!ctx.dryRun) must(ctx.run('openclaw', ['mcp', 'unset', name]), 'openclaw mcp unset')
-        actions.push(`removed mcp.servers.${name}`)
+    const warnings = []
+    for (const name of [ctx.name, ...LEGACY_SERVER_NAMES]) {
+      const entry = rawEntry(ctx, name).entry
+      if (entry === undefined) continue
+      if (!ctx.ours(entry.url)) {
+        if (name === ctx.name) warnings.push(`left mcp.servers.${name}: it is not box by Simular`)
+        continue
       }
+      if (!ctx.dryRun) must(ctx.run('openclaw', ['mcp', 'unset', name]), 'openclaw mcp unset')
+      actions.push(`${ctx.dryRun ? 'would remove' : 'removed'} mcp.servers.${name}`)
     }
-    const e = updateFile(envFile(ctx), (text) => removeEnvValue(text, KEY_ENV), { dryRun: ctx.dryRun, mode: 0o600 })
+    const e = updateFile(envFile(ctx), (text) => removeEnvValue(text, KEY_ENV), { dryRun: ctx.dryRun, mode: 0o600, secret: true })
     if (e.changed) actions.push(`${ctx.dryRun ? 'would remove' : 'removed'} ${KEY_ENV} from ${envFile(ctx)}`)
     if (e.backup) backups.push(e.backup)
-    return { actions, backups, next: [] }
+    return { actions, backups, warnings, next: [] }
   },
 }

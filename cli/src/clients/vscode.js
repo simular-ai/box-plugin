@@ -16,5 +16,5 @@ export default jsonClient({
   container: ['servers'],
   entry: (ctx) => ({ type: 'http', url: ctx.url }),
   dirs: (ctx) => [userDir(ctx)],
-  next: ['In VS Code, open the Command Palette -> MCP: List Servers -> box -> Start, then allow the sign-in and click Approve.'],
+  next: (ctx) => [`In VS Code, open the Command Palette -> MCP: List Servers -> ${ctx.name} -> Start, then allow the sign-in and click Approve.`],
 })

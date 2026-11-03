@@ -1,6 +1,6 @@
 // Shared logic for clients whose config is a JSON/JSONC file with a map of servers.
 import fs from 'node:fs'
-import { LEGACY_SERVER_NAMES, SERVER_NAME } from '../constants.js'
+import { ForeignServerError, LEGACY_SERVER_NAMES } from '../constants.js'
 import { readText, updateFile } from '../fsutil.js'
 import { getPath, parseJsonc, removeJsonServer, upsertJsonServer } from '../formats.js'
 
@@ -8,20 +8,24 @@ import { getPath, parseJsonc, removeJsonServer, upsertJsonServer } from '../form
  * @param {object} spec
  * @param {string} spec.id
  * @param {string} spec.name
- * @param {'oauth'|'key'} spec.auth
+ * @param {'oauth'} spec.auth
  * @param {(ctx) => string} spec.file          config file path
  * @param {string[]} spec.container             JSON path of the servers map
- * @param {(ctx, key) => object} spec.entry     the box entry to write
+ * @param {(ctx) => object} spec.entry          the box entry to write
  * @param {(entry) => string|undefined} [spec.entryUrl]
- * @param {(entry) => string|undefined} [spec.entryKey]
  * @param {string[]} [spec.bins]                binaries that mean "installed"
  * @param {(ctx) => string[]} [spec.dirs]       directories that mean "installed"
- * @param {string[]} [spec.next]
- * @param {(ctx) => object} [spec.extraStatus]
+ * @param {string[]|((ctx) => string[])} [spec.next]
  */
 export function jsonClient(spec) {
-  const entryUrl = spec.entryUrl || ((e) => e?.url)
-  const entryKey = spec.entryKey || (() => undefined)
+  const entryUrl = spec.entryUrl || ((e) => e?.url ?? e?.serverUrl)
+  const servers = (ctx) => {
+    const file = spec.file(ctx)
+    return getPath(parseJsonc(readText(file), file), spec.container) || {}
+  }
+  // Only entries that point at box by Simular are ours to change or remove.
+  const ourLegacy = (ctx, map) => LEGACY_SERVER_NAMES.filter((n) => map[n] && ctx.ours(entryUrl(map[n])))
+
   return {
     id: spec.id,
     name: spec.name,
@@ -40,33 +44,27 @@ export function jsonClient(spec) {
 
     status(ctx) {
       const file = spec.file(ctx)
-      const doc = parseJsonc(readText(file), file)
-      const servers = getPath(doc, spec.container) || {}
-      const entry = servers[SERVER_NAME]
-      const entries = entry ? [{ where: file, url: entryUrl(entry), enabled: entry.enabled !== false && entry.disabled !== true }] : []
-      const key = entry ? entryKey(entry) : undefined
+      const map = servers(ctx)
+      const entry = map[ctx.name]
+      if (entry && !ctx.ours(entryUrl(entry))) {
+        return { entries: [], legacy: [], keyConfigured: false, foreign: { where: file, url: entryUrl(entry) } }
+      }
       return {
-        entries,
-        legacy: LEGACY_SERVER_NAMES.filter((n) => servers[n]),
-        key,
-        keyConfigured: Boolean(key),
-        ...(spec.extraStatus ? spec.extraStatus(ctx, entry) : {}),
+        entries: entry ? [{ where: file, url: entryUrl(entry), enabled: entry.enabled !== false && entry.disabled !== true }] : [],
+        legacy: ourLegacy(ctx, map),
+        keyConfigured: false,
       }
     },
 
-    connect(ctx, { key } = {}) {
+    connect(ctx) {
       const file = spec.file(ctx)
-      let useKey = key
-      if (spec.auth === 'key' && !useKey) useKey = this.status(ctx).key
-      if (spec.auth === 'key' && !useKey) throw new Error('a personal key is needed')
-      const entry = spec.entry(ctx, useKey)
-      const res = updateFile(
-        file,
-        (text) => upsertJsonServer(text, spec.container, SERVER_NAME, entry, { legacy: LEGACY_SERVER_NAMES, file }),
-        { dryRun: ctx.dryRun, mode: spec.auth === 'key' ? 0o600 : undefined },
-      )
+      const map = servers(ctx)
+      if (map[ctx.name] && !ctx.ours(entryUrl(map[ctx.name]))) throw new ForeignServerError(file, ctx.name, entryUrl(map[ctx.name]))
+      const res = updateFile(file, (text) => upsertJsonServer(text, spec.container, ctx.name, spec.entry(ctx), { legacy: ourLegacy(ctx, map), file }), {
+        dryRun: ctx.dryRun,
+      })
       return {
-        actions: res.changed ? [`${ctx.dryRun ? 'would write' : 'wrote'} box to ${file}`] : [],
+        actions: res.changed ? [`${ctx.dryRun ? 'would write' : 'wrote'} ${ctx.name} to ${file}`] : [],
         backups: res.backup ? [res.backup] : [],
         next: typeof spec.next === 'function' ? spec.next(ctx) : spec.next || [],
       }
@@ -74,12 +72,14 @@ export function jsonClient(spec) {
 
     remove(ctx) {
       const file = spec.file(ctx)
-      const res = updateFile(file, (text) => removeJsonServer(text, spec.container, [SERVER_NAME, ...LEGACY_SERVER_NAMES], { file }), {
-        dryRun: ctx.dryRun,
-      })
+      const map = servers(ctx)
+      const names = [ctx.name, ...LEGACY_SERVER_NAMES].filter((n) => map[n] && ctx.ours(entryUrl(map[n])))
+      const warnings = map[ctx.name] && !names.includes(ctx.name) ? [`left "${ctx.name}" in ${file}: it points at ${entryUrl(map[ctx.name])}, not box by Simular`] : []
+      const res = updateFile(file, (text) => removeJsonServer(text, spec.container, names, { file }), { dryRun: ctx.dryRun })
       return {
-        actions: res.changed ? [`${ctx.dryRun ? 'would remove' : 'removed'} box from ${file}`] : [],
+        actions: res.changed ? [`${ctx.dryRun ? 'would remove' : 'removed'} ${names.join(', ')} from ${file}`] : [],
         backups: res.backup ? [res.backup] : [],
+        warnings,
         next: [],
       }
     },

@@ -6,8 +6,9 @@ command = "npx"
 args = ["docs-mcp"] # keep this comment
 
 [mcp_servers.box]
-url = "https://old.example.com/mcp"
+url = "https://relay.simular.cloud/old-mcp"
 bearer_token_env_var = "OLD"
+startup_timeout_sec = 30
 
 [mcp_servers.box.tools.shell]
 approval_mode = "approve"
@@ -15,5 +16,6 @@ approval_mode = "approve"
 [mcp_servers."box-control"]
 url = "https://relay.simular.cloud/control"
 
+# Profiles: keep this comment with its table
 [profiles.fast]
 model = "gpt-5-mini"

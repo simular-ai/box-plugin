@@ -12,5 +12,5 @@ export default jsonClient({
   entry: (ctx) => ({ url: ctx.url }),
   bins: ['cursor', 'agent', 'cursor-agent'],
   dirs: (ctx) => [path.join(ctx.home, '.cursor'), ...(ctx.platform === 'darwin' ? ['/Applications/Cursor.app'] : [])],
-  next: ['Open Cursor Settings -> MCP (Tools & MCP) and click Login next to box; sign in and click Approve.'],
+  next: (ctx) => [`Open Cursor Settings -> MCP (Tools & MCP) and click Login next to ${ctx.name}; sign in and click Approve.`],
 })

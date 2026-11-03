@@ -40,7 +40,9 @@ export function backup(file, now = new Date()) {
  * Write atomically (temp file + rename) so a crash never leaves a half-written config.
  * Keeps the existing file's mode; `mode` applies to new files (0600 for files that hold a key).
  */
-export function writeAtomic(file, text, { mode } = {}) {
+export function writeAtomic(linkOrFile, text, { mode } = {}) {
+  // Write through a symlinked config (dotfile repos): replace the target, keep the link.
+  const file = exists(linkOrFile) ? fs.realpathSync(linkOrFile) : linkOrFile
   fs.mkdirSync(path.dirname(file), { recursive: true })
   let finalMode = mode
   if (exists(file)) {
@@ -56,13 +58,15 @@ export function writeAtomic(file, text, { mode } = {}) {
 /**
  * Apply `transform(oldText|null) -> newText|null` to a file. Returns {changed, backup}.
  * A null result or an unchanged text leaves the file alone (idempotent re-runs, no backup spam).
+ * `secret: true` (a .env holding keys) keeps no backup: a backup would keep an old or removed
+ * key on disk. Those edits only add, replace or delete one line.
  */
-export function updateFile(file, transform, { mode, dryRun = false } = {}) {
+export function updateFile(file, transform, { mode, dryRun = false, secret = false } = {}) {
   const before = readText(file)
   const after = transform(before)
   if (after === null || after === before) return { changed: false, backup: null }
   if (dryRun) return { changed: true, backup: null, preview: after }
-  const backupPath = backup(file)
+  const backupPath = secret ? null : backup(exists(file) ? fs.realpathSync(file) : file)
   // A backup of a file that holds a key is a copy of that key: keep it as private as the file.
   if (backupPath && mode !== undefined) fs.chmodSync(backupPath, (fs.statSync(backupPath).mode & 0o777) & mode)
   writeAtomic(file, after, { mode })

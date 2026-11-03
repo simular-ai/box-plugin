@@ -6,6 +6,42 @@ export const DEFAULT_MCP_URL = 'https://relay.simular.cloud/mcp'
 export const LEGACY_SERVER_NAMES = ['box-control']
 
 export const SERVER_NAME = 'box'
+
+/** Hosts that serve box by Simular. An existing server named `box` elsewhere is not ours. */
+export const OUR_HOSTS = ['relay.simular.cloud', 'staging.relay.simular.cloud', 'mcp.box.simular.ai']
+
+/** Whether `url` points at box by Simular (a known host, or the host of the current endpoint). */
+export function isOurUrl(url, currentUrl) {
+  if (typeof url !== 'string') return false
+  let host
+  try {
+    host = new URL(url).host
+  } catch {
+    return false
+  }
+  if (OUR_HOSTS.includes(host)) return true
+  try {
+    return host === new URL(currentUrl).host
+  } catch {
+    return false
+  }
+}
+
+/** Thrown when a server with our name already exists but points somewhere else. */
+export class ForeignServerError extends Error {
+  constructor(where, name, url) {
+    super(
+      `${where} already has a server named "${name}" that points at ${url || 'something else'}, which is not box by Simular. ` +
+        'Nothing was changed. To add box next to it, run again with --name <another-name> (for example --name simular-box).',
+    )
+    this.foreign = true
+  }
+}
+
+export function validServerName(name) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name)) throw new Error('--name may use letters, digits, - and _ (up to 64)')
+  return name
+}
 export const KEY_ENV = 'BOX_TOKEN'
 export const KEYS_URL = 'https://box.simular.ai/keys'
 export const WATCH_URL = 'https://box.simular.ai/box'
