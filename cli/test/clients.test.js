@@ -11,6 +11,9 @@ import { FAKE_CLAUDE, FAKE_OPENCLAW, fixture, sandbox } from './helpers.js'
 
 const KEY = 'cb_test_fake_key_123'
 const client = (id) => findClient(id)
+const WIN = process.platform === 'win32'
+// Fake client CLIs are shebang scripts, and Windows has no POSIX file modes.
+const NO_FAKE_BINS = WIN && 'fake CLIs are shebang scripts; Windows runs the real clients in the install matrix'
 const plain = (v) => JSON.parse(JSON.stringify(v))
 const backups = (dir) => fs.readdirSync(dir).filter((f) => f.includes('.box-backup-'))
 
@@ -115,8 +118,8 @@ test('hermes: OAuth entry keeps comments; key mode puts the key only in .env (06
   assert.ok(!text.includes(KEY), 'the key is never written to config.yaml')
   assert.deepEqual(YAML.parse(text).mcp_servers.box, { url: DEFAULT_MCP_URL, headers: { Authorization: 'Bearer ${MCP_BOX_API_KEY}' }, enabled: true })
   assert.equal(sb.read('.hermes/.env'), `OPENROUTER_API_KEY=sk-other\nMCP_BOX_API_KEY=${KEY}\n`)
-  assert.equal(fs.statSync(path.join(sb.home, '.hermes/.env')).mode & 0o777, 0o600)
-  for (const b of backups(path.join(sb.home, '.hermes')).filter((f) => f.startsWith('.env'))) {
+  if (!WIN) assert.equal(fs.statSync(path.join(sb.home, '.hermes/.env')).mode & 0o777, 0o600)
+  for (const b of WIN ? [] : backups(path.join(sb.home, '.hermes')).filter((f) => f.startsWith('.env'))) {
     assert.equal(fs.statSync(path.join(sb.home, '.hermes', b)).mode & 0o777, 0o600, 'a backup of .env is private too')
   }
   const st = client('hermes').status(sb.ctx)
@@ -131,7 +134,7 @@ test('hermes: OAuth entry keeps comments; key mode puts the key only in .env (06
   assert.ok(YAML.parse(sb.read('.hermes/config.yaml')).mcp_servers.github)
 })
 
-test('openclaw: OAuth via `openclaw mcp set` with streamable-http; key mode references ${BOX_TOKEN} from .env', () => {
+test('openclaw: OAuth via `openclaw mcp set` with streamable-http; key mode references ${BOX_TOKEN} from .env', { skip: NO_FAKE_BINS }, () => {
   const sb = sandbox({ bins: { openclaw: FAKE_OPENCLAW } })
   client('openclaw').connect(sb.ctx, { mode: 'oauth' })
   const cfg = () => JSON.parse(sb.read('.openclaw/openclaw.json'))
@@ -156,14 +159,14 @@ test('openclaw: OAuth via `openclaw mcp set` with streamable-http; key mode refe
   assert.equal(sb.read('.openclaw/.env'), '')
 })
 
-test('openclaw: warns when the header references BOX_TOKEN but .env lacks it (the literal-placeholder 401)', () => {
+test('openclaw: warns when the header references BOX_TOKEN but .env lacks it (the literal-placeholder 401)', { skip: NO_FAKE_BINS }, () => {
   const sb = sandbox({ bins: { openclaw: FAKE_OPENCLAW } })
   sb.write('.openclaw/openclaw.json', JSON.stringify({ mcp: { servers: { box: { url: DEFAULT_MCP_URL, transport: 'streamable-http', headers: { Authorization: 'Bearer ${BOX_TOKEN}' } } } } }))
   const st = client('openclaw').status(sb.ctx)
   assert.match(st.warnings.join(' '), /placeholder and get 401/)
 })
 
-test('claude-code: default URL installs the plugin from the marketplace; override uses claude mcp add', () => {
+test('claude-code: default URL installs the plugin from the marketplace; override uses claude mcp add', { skip: NO_FAKE_BINS }, () => {
   const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
   sb.write('.claude.json', JSON.stringify({ mcpServers: { 'box-control': { url: 'x' }, box: { type: 'http', url: DEFAULT_MCP_URL }, other: { command: 'y' } } }))
   client('claude').connect(sb.ctx)

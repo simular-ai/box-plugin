@@ -66,4 +66,19 @@ node bin/simular-box.js connect --dry-run
 
 Test against a temporary home, never your own configs: `HOME=$(mktemp -d) node bin/simular-box.js connect --client cursor --yes`.
 
-Release: bump `version` in `package.json`, then push a tag `cli-vX.Y.Z`. The release workflow runs the tests and publishes to npm with provenance.
+CI (`.github/workflows/publish-cli.yml`) runs on every non-draft PR:
+- `check`: lint, unit tests and a smoke test on Linux, macOS and Windows.
+- `clients` (Layer 1): installs each real client at the version pinned in `e2e/clients.json`, then runs `e2e/install-matrix.mjs <client>` in an isolated HOME: connect, the client's own listing, re-run, doctor, remove. No secrets.
+- `live` (Layer 2): `e2e/live.mjs` with the staging key. It doesn't run on fork PRs.
+
+Any `e2e/` script can be run locally the same way, with the client on PATH. They never touch your HOME.
+
+### Releasing
+
+Bump `version` in `package.json`, merge, then push a tag `cli-vX.Y.Z`. A `cli-vX.Y.Z-rc.N` tag publishes under the dist-tag `next`. The workflow publishes with npm trusted publishing (OIDC, no token) and provenance, then creates a GitHub release.
+
+One-time setup, done by an owner of the `@simular-ai` npm org:
+
+1. **Publish the first version by hand.** npm can only attach a trusted publisher to a package that already exists. `npm help trust` says: "Package must exist: The package you're configuring must already exist on the npm registry". From `cli/` on `main`, with 2FA: `npm publish --access public`. This version has no provenance, because provenance comes only from CI.
+2. **Add the trusted publisher.** Either on npmjs.com (package → Settings → Trusted Publisher) or with npm >= 11.10.0: `npm trust github @simular-ai/box --repo simular-ai/box-plugin --file publish-cli.yml`. The values are organization `simular-ai`, repository `box-plugin`, workflow `publish-cli.yml`, no environment.
+3. **Push the next tag within 2 days.** A new trusted-publisher configuration expires if its first publish doesn't happen within 2 days.

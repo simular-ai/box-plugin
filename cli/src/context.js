@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
+import spawn from 'cross-spawn'
 import { mcpUrl } from './constants.js'
 
 /**
@@ -9,7 +9,8 @@ import { mcpUrl } from './constants.js'
  * point it at a temporary HOME and a fake PATH.
  */
 export function createContext({ env = process.env, platform = process.platform, dryRun = false, log = () => {} } = {}) {
-  const home = env.HOME || env.USERPROFILE || os.homedir()
+  // Match os.homedir(), which the apps themselves use: USERPROFILE on Windows, HOME elsewhere.
+  const home = (platform === 'win32' ? env.USERPROFILE || env.HOME : env.HOME || env.USERPROFILE) || os.homedir()
   const ctx = {
     env,
     home,
@@ -30,19 +31,14 @@ export function createContext({ env = process.env, platform = process.platform, 
       return which(bin, env, platform)
     },
     /**
-     * Run a client's own CLI. Arguments are passed as an array (no shell), so nothing is
-     * interpolated. Secrets must never be passed here: they would show up in `ps`.
+     * Run a client's own CLI. Arguments are passed as an array; cross-spawn quotes them for
+     * Windows .cmd shims (npm-installed CLIs), where a plain spawn needs a shell. Secrets must
+     * never be passed here: they would show up in `ps`.
      */
     run(bin, args, { input, timeoutMs = 60000 } = {}) {
       const resolved = ctx.which(bin)
       if (!resolved) return { status: 127, stdout: '', stderr: `${bin} not found` }
-      const res = spawnSync(resolved, args, {
-        env,
-        input,
-        encoding: 'utf8',
-        timeout: timeoutMs,
-        shell: platform === 'win32' && /\.(cmd|bat)$/i.test(resolved),
-      })
+      const res = spawn.sync(resolved, args, { env, input, encoding: 'utf8', timeout: timeoutMs })
       return { status: res.status ?? 1, stdout: res.stdout || '', stderr: res.stderr || String(res.error || '') }
     },
   }

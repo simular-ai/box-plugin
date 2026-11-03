@@ -1,0 +1,284 @@
+name: Publish CLI
+
+# CI + npm publish for @simular-ai/box (cli/). Modeled on simular-ai/sai-sdk's publish-sai-mcp.yml.
+#
+# Every non-draft PR that touches the CLI or a plugin folder runs:
+#   check    lint, unit tests, smoke test on Linux, macOS and Windows (plus Node 18 on Linux)
+#   plugins  each agent's own validator over the plugin folders
+#   clients  Layer 1: the real CLI against each real, installed client in an isolated HOME
+#            (versions pinned in cli/e2e/clients.json). No secrets.
+#   live     Layer 2: a real staging key (secret BOX_CI_KEY, variable BOX_CI_MCP_URL) proves the
+#            headless clients reach box and list its tools. Never on PRs from forks.
+# Publishing happens only when a tag `cli-vX.Y.Z` (or `cli-vX.Y.Z-rc.N`, dist-tag "next") is pushed.
+#
+# Cutting a release: bump "version" in cli/package.json, merge to main, then
+#   git tag cli-v<X.Y.Z> && git push origin cli-v<X.Y.Z>
+#
+# Auth: npm trusted publishing (OIDC). The publish job's `id-token: write` lets the npm CLI swap
+# a GitHub OIDC token for a short-lived publish token: no NPM_TOKEN secret. Requires the
+# trusted-publisher config on npmjs.com (package @simular-ai/box -> Settings -> Trusted
+# Publisher): organization "simular-ai", repository "box-plugin", workflow filename
+# "publish-cli.yml", no environment. npm only lets you configure it on a package that already
+# exists, so the very first version is published once by hand (see cli/README.md).
+# The repo is public, so npm attaches a provenance attestation.
+#
+# TODO(layer 3): nightly run against the latest client versions plus a real agent task on a box.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    paths:
+      - 'cli/**'
+      - 'claude/**'
+      - 'dsh/**'
+      - 'hermes/**'
+      - 'openclaw/**'
+      - '.claude-plugin/**'
+      - '.github/workflows/publish-cli.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'cli/**'
+      - '.github/workflows/publish-cli.yml'
+    tags:
+      - 'cli-v*'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Check (${{ matrix.os }}, Node ${{ matrix.node }})
+    # Draft PRs run nothing; `ready_for_review` starts the checks. Non-PR events read `draft` as null.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [24]
+        include:
+          - os: ubuntu-latest
+            node: 18
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+      - run: npm ci
+      - name: Lint
+        if: matrix.node == 24
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Smoke test
+        run: npm run smoke
+      - name: Pack
+        run: npm pack --dry-run
+
+  plugins:
+    name: Validate plugin folders
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Install validators (versions from cli/e2e/clients.json)
+        run: |
+          set -euo pipefail
+          spec() { node -p "require('./cli/e2e/clients.json')['$1'].npm"; }
+          npm install -g "$(spec claude-code)" "$(spec openclaw)"
+          tag=$(node -p "require('./cli/e2e/clients.json').hermes.tag")
+          git clone --quiet --depth 1 --branch "$tag" https://github.com/NousResearch/hermes-agent "$RUNNER_TEMP/hermes"
+          (cd "$RUNNER_TEMP/hermes" && uv sync --frozen --extra mcp --quiet)
+          echo "$RUNNER_TEMP/hermes/.venv/bin" >> "$GITHUB_PATH"
+      - name: Claude Code marketplace and plugin
+        run: |
+          set -euo pipefail
+          export HOME="$(mktemp -d)"
+          claude plugin validate .
+          claude plugin validate ./claude
+      - name: DeepSeek Harness package
+        run: npm pack ./dsh --dry-run
+      - name: Hermes plugin
+        run: |
+          set -euo pipefail
+          if [ ! -d hermes ]; then echo "no hermes/ folder on this ref; skipped"; exit 0; fi
+          export HOME="$(mktemp -d)"
+          hermes plugins validate ./hermes
+      - name: OpenClaw plugin
+        run: |
+          set -euo pipefail
+          if [ ! -d openclaw ]; then echo "no openclaw/ folder on this ref; skipped"; exit 0; fi
+          export HOME="$(mktemp -d)"
+          openclaw plugins install ./openclaw --force --accept-capabilities
+          openclaw plugins inspect box
+          openclaw plugins doctor
+
+  clients:
+    name: Install matrix (${{ matrix.client }}, ${{ matrix.os }})
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        client: [claude-code, codex, cursor, opencode, hermes, openclaw]
+        exclude:
+          # cursor-agent ships for Linux and macOS only.
+          - os: windows-latest
+            client: cursor
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+      - run: npm ci
+        working-directory: cli
+      - name: Install ${{ matrix.client }}
+        env:
+          CLIENT: ${{ matrix.client }}
+        run: |
+          set -euo pipefail
+          get() { node -p "(require('./cli/e2e/clients.json')['$CLIENT'] || {})['$1'] || ''"; }
+          if [ -n "$(get npm)" ]; then
+            npm install -g "$(get npm)"
+          elif [ "$CLIENT" = hermes ]; then
+            git clone --quiet --depth 1 --branch "$(get tag)" "$(get git)" "$RUNNER_TEMP/hermes"
+          elif [ "$CLIENT" = cursor ]; then
+            os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m)
+            case "$arch" in x86_64|amd64) arch=x64;; arm64|aarch64) arch=arm64;; esac
+            mkdir -p "$RUNNER_TEMP/cursor-agent"
+            curl -fsSL "https://downloads.cursor.com/lab/$(get cursorAgent)/$os/$arch/agent-cli-package.tar.gz" \
+              | tar --strip-components=1 -xzf - -C "$RUNNER_TEMP/cursor-agent"
+            echo "$RUNNER_TEMP/cursor-agent" >> "$GITHUB_PATH"
+          fi
+      - if: matrix.client == 'hermes'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Install Hermes dependencies
+        if: matrix.client == 'hermes'
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/hermes"
+          uv sync --frozen --extra mcp --quiet
+          if [ -d .venv/Scripts ]; then echo "$(cygpath -w "$PWD/.venv/Scripts")" >> "$GITHUB_PATH"; else echo "$PWD/.venv/bin" >> "$GITHUB_PATH"; fi
+      - name: connect, list, re-run, doctor, remove
+        working-directory: cli
+        run: node e2e/install-matrix.mjs ${{ matrix.client }}
+
+  live:
+    name: Live staging (headless clients)
+    # Needs secrets: push to main, tags, manual runs, and PRs from this repository only, never forks.
+    if: >-
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: npm ci
+        working-directory: cli
+      - name: Install OpenClaw and Hermes
+        run: |
+          set -euo pipefail
+          npm install -g "$(node -p "require('./cli/e2e/clients.json').openclaw.npm")"
+          git clone --quiet --depth 1 --branch "$(node -p "require('./cli/e2e/clients.json').hermes.tag")" https://github.com/NousResearch/hermes-agent "$RUNNER_TEMP/hermes"
+          (cd "$RUNNER_TEMP/hermes" && uv sync --frozen --extra mcp --quiet)
+          echo "$RUNNER_TEMP/hermes/.venv/bin" >> "$GITHUB_PATH"
+      - name: Key valid, clients connect and list box's tools
+        working-directory: cli
+        env:
+          BOX_MCP_URL: ${{ vars.BOX_CI_MCP_URL }}
+          BOX_TOKEN: ${{ secrets.BOX_CI_KEY }}
+        run: |
+          echo "::add-mask::$BOX_TOKEN"
+          node e2e/live.mjs hermes openclaw
+
+  publish:
+    name: Publish to npm
+    needs: [check, plugins, clients]
+    if: startsWith(github.ref, 'refs/tags/cli-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # npm trusted publishing (OIDC) and provenance
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      # No `registry-url`: setup-node would write an .npmrc with `_authToken=${NODE_AUTH_TOKEN}`,
+      # which shadows the OIDC handshake. Node 24 ships npm 11 (trusted publishing needs >= 11.5.1).
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+      - run: npm ci
+      - name: Verify tag matches package version and pick the dist-tag
+        id: release
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          TAG_VERSION="${TAG_NAME#cli-v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match cli/package.json ($PKG_VERSION)." >&2
+            exit 1
+          fi
+          if echo "$TAG_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "dist-tag=latest" >> "$GITHUB_OUTPUT"
+          elif echo "$TAG_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$'; then
+            echo "dist-tag=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Tag '$TAG_NAME' is not a release tag (expected cli-vX.Y.Z or cli-vX.Y.Z-rc.N)." >&2
+            exit 1
+          fi
+      - name: Publish to npmjs.org
+        run: npm publish --provenance --access public --tag "${{ steps.release.outputs.dist-tag }}"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+          PRERELEASE_FLAG: ${{ steps.release.outputs.dist-tag == 'next' && '--prerelease' || '' }}
+        run: |
+          gh release create "$TAG_NAME" --title "$TAG_NAME" --generate-notes --latest=false $PRERELEASE_FLAG

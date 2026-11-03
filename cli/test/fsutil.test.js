@@ -13,13 +13,13 @@ test('updateFile backs up, writes atomically, and is a no-op when nothing change
   assert.equal(first.changed, true)
   assert.equal(fs.readFileSync(first.backup, 'utf8'), 'old\n')
   assert.equal(fs.readFileSync(file, 'utf8'), 'new\n')
-  assert.equal(fs.statSync(file).mode & 0o777, 0o640)
+  if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o640)
   const second = updateFile(file, () => 'new\n')
   assert.deepEqual(second, { changed: false, backup: null })
   assert.equal(fs.readdirSync(dir).length, 2)
 })
 
-test('updateFile creates new key files 0600 and tightens existing ones', () => {
+test('updateFile creates new key files 0600 and tightens existing ones', { skip: process.platform === 'win32' && 'no POSIX file modes on Windows' }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'box-fs-'))
   const fresh = path.join(dir, 'sub', 'new.env')
   updateFile(fresh, () => 'X=1\n', { mode: 0o600 })
