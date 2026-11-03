@@ -1,0 +1,7 @@
+# Hermes settings
+model:
+  default: anthropic/claude-sonnet-4.5
+mcp_servers:
+  github:
+    command: npx   # GitHub server
+    args: [github-mcp]

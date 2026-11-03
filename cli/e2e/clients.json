@@ -1,0 +1,9 @@
+{
+  "//": "Client versions the CI install matrix tests against. Bump here only.",
+  "claude-code": { "npm": "@anthropic-ai/claude-code@2.1.316" },
+  "codex": { "npm": "@openai/codex@0.166.0" },
+  "opencode": { "npm": "opencode-ai@1.19.5" },
+  "openclaw": { "npm": "openclaw@2026.10.9" },
+  "hermes": { "git": "https://github.com/NousResearch/hermes-agent", "tag": "v0.22.6" },
+  "cursor": { "cursorAgent": "2026.10.22-27dcf5f" }
+}
