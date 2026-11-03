@@ -1,7 +1,7 @@
 {
   "name": "@simular-ai/box",
-  "version": "0.1.3",
-  "description": "Connect box by Simular (a cloud computer your AI agent drives over MCP) to Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Hermes, OpenClaw and more in one command.",
+  "version": "0.2.0",
+  "description": "Connect box by Simular (a cloud computer your AI agent drives over MCP) to Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Hermes, OpenClaw and more in one command, and move a coding task into your box and back (offload / back).",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -10,6 +10,7 @@
   "files": [
     "bin/",
     "src/",
+    "proto/",
     "README.md",
     "LICENSE"
   ],
@@ -24,6 +25,8 @@
   },
   "dependencies": {
     "@clack/prompts": "0.11.0",
+    "@grpc/grpc-js": "1.14.6",
+    "@grpc/proto-loader": "0.8.1",
     "cross-spawn": "7.0.6",
     "jsonc-parser": "3.3.1",
     "smol-toml": "1.9.1",

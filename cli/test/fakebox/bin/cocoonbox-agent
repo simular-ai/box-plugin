@@ -1,0 +1,127 @@
+#!/usr/bin/env node
+// A fake box packer for tests: the `cocoonbox-agent offload` verbs as contracts.md "Offload" states them, with the box
+// copy under $FAKE_BOX_WORKSPACE and the inbox and outbox as files under $FAKE_BOX_STATE. It does what the CLI depends
+// on (begin's refs, send's tar stream with the bundle indexed by `git index-pack --fix-thin`, read, end) and no CLI
+// session: a test plays the box agent by committing in the copy and posting `back` with FAKE_POST.
+import { execFileSync, spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+
+const [verb, ...args] = process.argv.slice(3)
+const opt = (name) => {
+  const i = args.indexOf(name)
+  return i < 0 ? undefined : args[i + 1]
+}
+const has = (name) => args.includes(name)
+const state = process.env.FAKE_BOX_STATE
+const reply = (obj, code = 0) => {
+  process.stdout.write(JSON.stringify(obj) + '\n')
+  process.exit(code)
+}
+const repo = opt('--repo')
+const file = (name) => path.join(state, `${repo}.${name}.json`)
+const load = (name, fallback) => {
+  try {
+    return JSON.parse(fs.readFileSync(file(name), 'utf8'))
+  } catch {
+    return fallback
+  }
+}
+const save = (name, v) => fs.writeFileSync(file(name), JSON.stringify(v))
+
+function stdin() {
+  return fs.readFileSync(0)
+}
+
+function untar(buf) {
+  const members = {}
+  let off = 0
+  let longName = null
+  while (off + 512 <= buf.length) {
+    const h = buf.subarray(off, off + 512)
+    if (h.every((b) => b === 0)) break
+    const name = h.subarray(0, 100).toString('utf8').replace(/\0.*$/s, '')
+    const size = parseInt(h.subarray(124, 136).toString('utf8').replace(/\0.*$/s, '').trim(), 8)
+    const type = String.fromCharCode(h[156])
+    const body = buf.subarray(off + 512, off + 512 + size)
+    off += 512 + Math.ceil(size / 512) * 512
+    if (type === 'x') {
+      longName = /path=(.*)\n/.exec(body.toString('utf8'))[1]
+      continue
+    }
+    members[longName || name] = Buffer.from(body)
+    longName = null
+  }
+  return members
+}
+
+switch (verb) {
+  case 'begin': {
+    if (process.env.FAKE_BEGIN_BLOCK) {
+      reply({ ok: false, code: 'refused', error: 'the box CLI is signed out', findings: [{ check: 'cli', outcome: 'block', detail: 'claude is signed out' }], cli: {} }, 3)
+    }
+    const dir = path.join(process.env.FAKE_BOX_WORKSPACE, opt('--name'))
+    fs.mkdirSync(dir, { recursive: true })
+    let refs = {}
+    if (fs.existsSync(path.join(dir, '.git', 'objects'))) {
+      const out = spawnSync('git', ['-C', dir, 'for-each-ref', '--format=%(refname) %(objectname)'], { encoding: 'utf8' }).stdout
+      for (const line of out.split('\n').filter(Boolean)) {
+        const [ref, oid] = line.split(' ')
+        refs[ref] = oid
+      }
+    }
+    save('session', { id: opt('--id'), dir, kind: opt('--kind') })
+    reply({ ok: true, dir, copy: Object.keys(refs).length ? 'mirror' : 'absent', refs, cli: { kind: opt('--kind'), version: '9.9.9', signed_in: true, account: 'test@example.com' }, ignored: [], findings: [] })
+    break
+  }
+  case 'send': {
+    const input = stdin()
+    if (has('--back') || has('--message')) {
+      const inbox = load('inbox', [])
+      inbox.push({ back: has('--back'), body: input.toString('utf8') })
+      save('inbox', inbox)
+      reply({ ok: true, seq: inbox.length, delivery: 'pasted' })
+    }
+    const session = load('session', null)
+    if (!session || session.id !== opt('--id')) reply({ ok: false, code: 'refused', error: 'another offload holds the copy' }, 3)
+    const members = untar(input)
+    fs.writeFileSync(path.join(state, `${repo}.handover.md`), members['handover.md'] || '')
+    fs.writeFileSync(path.join(state, `${repo}.env.json`), members['env.json'] || '')
+    const secrets = Object.keys(members).filter((n) => n.startsWith('secrets/'))
+    fs.writeFileSync(path.join(state, `${repo}.secrets.json`), JSON.stringify(secrets))
+    const dir = session.dir
+    fs.mkdirSync(path.join(dir, '.git', 'objects', 'pack'), { recursive: true })
+    fs.mkdirSync(path.join(dir, '.git', 'objects', 'info'), { recursive: true })
+    const bundle = members['offload.bundle']
+    if (bundle) {
+      // header lines up to a blank line, then the pack
+      const end = bundle.indexOf('\n\n')
+      const header = bundle.subarray(0, end).toString('utf8').split('\n').slice(1)
+      execFileSync('git', ['-C', dir, 'index-pack', '--stdin', '--fix-thin'], { input: bundle.subarray(end + 2), stdio: ['pipe', 'ignore', 'inherit'] })
+      for (const line of header) {
+        if (line.startsWith('-') || line.startsWith('@')) continue
+        const [oid, ref] = line.split(' ')
+        if (ref && ref.startsWith('refs/')) execFileSync('git', ['-C', dir, 'update-ref', ref, oid])
+      }
+    }
+    execFileSync('git', ['-C', dir, 'update-index', '-q', '--refresh'], { stdio: 'ignore' })
+    save('session', { ...session, started: true })
+    reply({ ok: true, delivery: 'started', accepted: true, tmux: `cb-off-${repo}-${opt('--kind')}`, timings_ms: {} })
+    break
+  }
+  case 'read': {
+    const since = Number(opt('--since') || 0)
+    const outbox = load('outbox', [])
+    reply({ ok: true, entries: outbox.filter((e) => e.seq > since), status: 'idle' })
+    break
+  }
+  case 'status':
+    reply({ ok: true, sessions: [] })
+    break
+  case 'end':
+    save('ended', true)
+    reply({ ok: true })
+    break
+  default:
+    reply({ ok: false, code: 'usage', error: `unknown verb ${verb}` }, 2)
+}

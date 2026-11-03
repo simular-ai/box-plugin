@@ -5,6 +5,7 @@ import { createContext } from './context.js'
 import { CLIENTS, findClient } from './clients/index.js'
 import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, EXAMPLE_PROMPTS, isOldUrl, looksLikeKey, validServerName } from './constants.js'
 import { probeEndpoint, checkKey } from './probe.js'
+import { OFFLOAD_HELP, boxContext, login, logout, rshCommand, offload, back } from './offload/commands.js'
 
 const VERSION = createRequire(import.meta.url)('../package.json').version
 
@@ -14,6 +15,8 @@ Usage:
   npx @simular-ai/box connect [--client <ids>] [--auth oauth|key] [--yes] [--dry-run]
   npx @simular-ai/box doctor  [--client <ids>] [--json]
   npx @simular-ai/box remove  [--client <ids>] [--yes] [--dry-run]
+
+${OFFLOAD_HELP}
 
 Clients: ${CLIENTS.map((c) => c.id).join(', ')}
 
@@ -33,6 +36,8 @@ Set BOX_MCP_URL to use another box endpoint (default ${DEFAULT_MCP_URL}).
 `
 
 export async function main(argv, { env = process.env, stdout = process.stdout, isTTY = Boolean(process.stdin.isTTY && process.stdout.isTTY) } = {}) {
+  // rsh is rsync's and git's remote shell: its words after the options are the remote command, so they are not parsed here.
+  if (argv[0] === 'rsh') return rshCommand(boxContext(env), argv.slice(1))
   const args = parseArgs(argv)
   if (args.flags.version) {
     stdout.write(`${VERSION}\n`)
@@ -55,6 +60,14 @@ export async function main(argv, { env = process.env, stdout = process.stdout, i
     case 'remove':
     case 'uninstall':
       return remove(ctx, args.flags, { interactive })
+    case 'login':
+      return login(boxContext(env), args.flags, { stdout })
+    case 'logout':
+      return logout(boxContext(env), args.flags, { stdout })
+    case 'offload':
+      return offload(boxContext(env), args.flags, args.rest, { stdout })
+    case 'back':
+      return back(boxContext(env), args.flags, { stdout })
     default:
       throw new Error(`unknown command "${args.command}"; run with --help`)
   }
