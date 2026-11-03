@@ -254,3 +254,40 @@ test('tty escape: ~. at line start disconnects, ~~ sends ~, other ~ pass through
   const g = escapeFilter(() => gone++)
   assert.equal(g(Buffer.from('~.')).disconnect, true, 'the first byte is a line start')
 })
+
+test('back pastes BACK again once when the box CLI never took it, and only after a paste', async () => {
+  const { Offloader } = await import('../src/offload/offloader.js')
+  const { OffloadStore } = await import('../src/offload/store.js')
+  const home = tmpdir()
+  const store = new OffloadStore(home)
+  store.save({ id: 'id1', repo: 'k1', box: 'b', box_name: 'main', name: 'r', dir: '/w/r', kind: 'claude', base: null, top: null, started_at_ms: 0, seen: 0 })
+  const run = async (firstDelivery) => {
+    const sends = []
+    let posted = false
+    class Fake extends Offloader {
+      async verb(args) {
+        if (args[0] === 'status') return { sessions: [{ repo: 'k1', status: 'working', hook_at_ms: 5 }] }
+        if (args[0] === 'send') {
+          sends.push(args.slice(3).join(' '))
+          if (sends.length === 2) posted = true
+          return { delivery: sends.length === 1 ? firstDelivery : 'pasted' }
+        }
+        if (args[0] === 'read') {
+          await new Promise((r) => setTimeout(r, 20))
+          return { status: 'working', entries: posted ? [{ seq: 1, kind: 'back', offload_id: 'id1', body: '# Hand-over: x' }] : [] }
+        }
+        return { ok: true }
+      }
+    }
+    const f = new Fake({ connection: { endpoint: 'e', token: 't' }, box: { id: 'b' }, store, rsh: 'x', env: {} })
+    const out = await f.back('k1', { retryS: 0.05, waitS: 1 }).catch((e) => e)
+    store.save({ id: 'id1', repo: 'k1', box: 'b', box_name: 'main', name: 'r', dir: '/w/r', kind: 'claude', base: null, top: null, started_at_ms: 0, seen: 0 })
+    return { sends, out }
+  }
+  const pasted = await run('pasted')
+  assert.deepEqual(pasted.sends, ['--back', '--back --interrupt'])
+  assert.equal(pasted.out.handover, '# Hand-over: x')
+  const queued = await run('queued')
+  assert.deepEqual(queued.sends, ['--back'], 'a queued BACK is never re-sent')
+  assert.match(queued.out.message, /has not handed the work back/)
+})

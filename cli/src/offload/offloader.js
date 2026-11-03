@@ -14,6 +14,8 @@ import { tarParts } from './tar.js'
 // loomhand/cocoonbox macos/Sources/CocoonBoxKit/Offloader.swift.
 
 export const BACK_WAIT_S = 600
+// How long a BACK may go without any hook from the box CLI before it is pasted again.
+export const BACK_RETRY_S = 60
 
 export class Offloader {
   /**
@@ -223,19 +225,27 @@ export class Offloader {
   // ---------- back ----------
 
   /** back asks the box agent for its hand-over, waits for it, fetches the box's commits and lands them against S, then ends the box CLI session. */
-  async back(key, { interrupt = false, onEntry = () => {}, waitS = BACK_WAIT_S } = {}) {
+  async back(key, { interrupt = false, onEntry = () => {}, waitS = BACK_WAIT_S, retryS = BACK_RETRY_S } = {}) {
     const record = this.store.record(key)
     if (!record) throw new OffloadError('failed', 'nothing of this repo is in the box')
     let { entries } = await this.read(key, 0)
     let back = [...entries].reverse().find((e) => e.kind === 'back' && e.offload_id === record.id)
     let since = Math.max(0, ...entries.map((e) => e.seq))
+    // A pasted BACK that the box CLI never took (seen on prod: the paste vanished and the session stayed "working" with no
+    // hook) is pasted again once, with --interrupt so it is not queued behind that phantom turn.
+    let hookBefore = null
+    let retryAt = null
     if (!back) {
-      await this.verb(['send', '--repo', key, '--back', ...(interrupt ? ['--interrupt'] : [])], [Buffer.alloc(0)])
+      hookBefore = await this.#hookAt(key)
+      const sent = await this.verb(['send', '--repo', key, '--back', ...(interrupt ? ['--interrupt'] : [])], [Buffer.alloc(0)])
       this.progress('asked the box agent for its hand-over; waiting')
+      // only a paste into an idle CLI can vanish; a queued BACK waits for a real turn to end
+      if (sent.delivery === 'pasted') retryAt = Date.now() + retryS * 1000
     }
     const deadline = Date.now() + waitS * 1000
     while (!back) {
-      const left = Math.max(1, Math.ceil((deadline - Date.now()) / 1000))
+      let left = Math.max(1, Math.ceil((deadline - Date.now()) / 1000))
+      if (retryAt) left = Math.min(left, Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)))
       const res = await this.read(key, since, left)
       for (const entry of res.entries) {
         since = Math.max(since, entry.seq)
@@ -244,6 +254,13 @@ export class Offloader {
       }
       back = [...res.entries].reverse().find((e) => e.kind === 'back' && e.offload_id === record.id)
       if (!back && res.status === 'stopped') throw new OffloadError('failed', 'the box CLI session stopped without handing the work back')
+      if (!back && retryAt && Date.now() >= retryAt) {
+        retryAt = null
+        if (res.status === 'working' && (await this.#hookAt(key)) === hookBefore) {
+          this.progress('the box CLI has not taken BACK; asking again')
+          await this.verb(['send', '--repo', key, '--back', '--interrupt'], [Buffer.alloc(0)])
+        }
+      }
       if (!back && Date.now() >= deadline) {
         throw new OffloadError(
           'failed',
@@ -267,6 +284,15 @@ export class Offloader {
     await this.verb(['end', '--repo', key])
     this.store.remove(key)
     return { record, handover: back.body, file, landing }
+  }
+
+  /** hookAt is when the repo's box CLI last ran a hook, from `offload status`; null when unknown. */
+  async #hookAt(key) {
+    try {
+      return (await this.status(key)).find((x) => x.repo === key)?.hook_at_ms ?? null
+    } catch {
+      return null
+    }
   }
 
   // ---------- inbox ----------
