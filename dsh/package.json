@@ -1,14 +1,35 @@
 {
   "name": "@simular/dsh-box",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "box by Simular: a cloud desktop your agent drives over MCP",
   "license": "MIT",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
   "files": [
-    "cordis.patch.yml"
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json"
   ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
     }
-  }
+  },
+  "icon": "./icon.svg"
 }
