@@ -46,14 +46,13 @@ function handover(goal) {
 }
 
 /** playBoxAgent commits change in the copy, makes S' as the box packer's `post --back` does, and posts back. */
-function playBoxAgent(dir, id, change) {
+function playBoxAgent({ dir, offload_id: id, repo: key }, change) {
   for (const [file, text] of Object.entries(change)) fs.writeFileSync(path.join(dir, file), text)
   git(dir, 'add', '-A')
   git(dir, 'commit', '-qm', 'box work')
   const tree = git(dir, 'rev-parse', 'HEAD^{tree}')
   const snap = git(dir, 'commit-tree', tree, '-p', 'HEAD', '-m', 'back')
   git(dir, 'update-ref', `refs/cocoonbox/back/${id}`, snap)
-  const key = fs.readdirSync(path.join(tmp, 'state')).find((f) => f.endsWith('.session.json')).split('.')[0]
   const outbox = path.join(tmp, 'state', `${key}.outbox.json`)
   const entries = fs.existsSync(outbox) ? JSON.parse(fs.readFileSync(outbox, 'utf8')) : []
   entries.push({ seq: entries.length + 1, kind: 'back', offload_id: id, cli: 'claude', time_ms: Date.now(), body: handover('done in the box') })
@@ -86,7 +85,7 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('rsh passes bytes, exit codes and stderr, and drops rsync host words', { skip }, async () => {
+test('rsh passes bytes, exit codes and stderr, and drops rsync host words', { skip, timeout: 60000 }, async () => {
   const data = crypto.randomBytes(300 << 10)
   const cat = await cli(['rsh', '--box', 'main', 'box', 'cat'], { input: data })
   assert.equal(cat.code, 0)
@@ -103,7 +102,7 @@ test('rsh passes bytes, exit codes and stderr, and drops rsync host words', { sk
   assert.ok(!bad.stderr.includes('cb_wrong'), 'the token is never printed')
 })
 
-test('offload warns, then moves the task; back fast-forwards the box commits', { skip }, async () => {
+test('offload warns, then moves the task; back fast-forwards the box commits', { skip, timeout: 60000 }, async () => {
   const repo = makeRepo('proj')
   fs.writeFileSync(path.join(repo, 'a.txt'), 'one\nuncommitted\n')
   fs.writeFileSync(path.join(repo, 'new.txt'), 'untracked\n')
@@ -142,7 +141,7 @@ test('offload warns, then moves the task; back fast-forwards the box commits', {
   assert.equal(fs.statSync(rec).mode & 0o777, 0o600)
   assert.equal(fs.statSync(path.dirname(rec)).mode & 0o777, 0o700)
 
-  playBoxAgent(copy, r.offload_id, { 'a.txt': 'one\nuncommitted\nfrom the box\n' })
+  playBoxAgent(r, { 'a.txt': 'one\nuncommitted\nfrom the box\n' })
   const back = await cli(['back', '--json'], { cwd: repo })
   assert.equal(back.code, 0, back.stderr + back.text)
   const b = JSON.parse(back.text)
@@ -162,7 +161,7 @@ test('offload warns, then moves the task; back fast-forwards the box commits', {
   assert.match(again.stderr, /back\.md/)
 })
 
-test('back applies a clean merge uncommitted when the user worked meanwhile, else a branch', { skip }, async () => {
+test('back applies a clean merge uncommitted when the user worked meanwhile, else a branch', { skip, timeout: 60000 }, async () => {
   const repo = makeRepo('proj2')
   const where = (await cli(['offload', 'handover-path'], { cwd: repo })).text.trim()
   fs.writeFileSync(where, handover('second'))
@@ -170,7 +169,7 @@ test('back applies a clean merge uncommitted when the user worked meanwhile, els
   assert.equal(done.code, 0, done.stderr)
   const r = JSON.parse(done.text)
   fs.writeFileSync(path.join(repo, 'b.txt'), 'bee\nlocal edit\n')
-  playBoxAgent(r.dir, r.offload_id, { 'a.txt': 'one\nbox edit\n' })
+  playBoxAgent(r, { 'a.txt': 'one\nbox edit\n' })
   const back = JSON.parse((await cli(['back', '--json'], { cwd: repo })).text)
   assert.match(back.landing, /^merged/)
   assert.equal(fs.readFileSync(path.join(repo, 'a.txt'), 'utf8'), 'one\nbox edit\n')
@@ -182,13 +181,13 @@ test('back applies a clean merge uncommitted when the user worked meanwhile, els
   git(repo, 'commit', '-qm', 'local')
   const third = JSON.parse((await cli(['offload', '--kind', 'claude', '--yes', '--json'], { cwd: repo })).text)
   fs.writeFileSync(path.join(repo, 'a.txt'), 'mine\n')
-  playBoxAgent(third.dir, third.offload_id, { 'a.txt': 'theirs\n' })
+  playBoxAgent(third, { 'a.txt': 'theirs\n' })
   const conflict = JSON.parse((await cli(['back', '--json'], { cwd: repo })).text)
   assert.match(conflict.landing, /^conflict: the box's work is on the branch cocoonbox\/back-/)
   assert.equal(fs.readFileSync(path.join(repo, 'a.txt'), 'utf8'), 'mine\n', 'the work tree is untouched')
 })
 
-test('a box-side block exits 3 and names the box CLI commands', { skip }, async () => {
+test('a box-side block exits 3 and names the box CLI commands', { skip, timeout: 60000 }, async () => {
   const repo = makeRepo('proj3')
   fs.writeFileSync((await cli(['offload', 'handover-path'], { cwd: repo })).text.trim(), handover('blocked'))
   // the block comes from begin; run the fake agent with FAKE_BEGIN_BLOCK through a box restarted with it
