@@ -25,7 +25,9 @@ export class Offloader {
     this.box = box
     this.store = store
     this.rsh = rsh
-    this.env = { ...env, BOX_ENDPOINT: connection.endpoint, BOX_TOKEN: connection.token }
+    this.env = env
+    // Only rsync and git, which run this CLI's rsh, get the token; the preflight's and the probe's tools never see it.
+    this.rshEnv = { ...env, BOX_ENDPOINT: connection.endpoint, BOX_TOKEN: connection.token }
     this.progress = progress
   }
 
@@ -145,7 +147,7 @@ export class Offloader {
     fs.rmSync(report, { force: true })
     try {
       const argv = ['rsync', '-az', '--stats', '--delete', `--exclude-from=${excludes}`, '--exclude=/.git/objects/', ...(repo.linked ? ['--exclude=/.git'] : []), '-e', this.rsh, repo.top + '/', `box:${dir}/`]
-      const r = await run(argv, { env: { ...this.env, BOX_RSH_REPORT: report } })
+      const r = await run(argv, { env: { ...this.rshEnv, BOX_RSH_REPORT: report } })
       if (r.status !== 0) {
         let side = 'rsh never reported, so it did not start or was killed'
         try {
@@ -257,7 +259,7 @@ export class Offloader {
       if (!repo) throw new OffloadError('failed', `${record.top} is no longer a git repository`)
       const ref = `refs/cocoonbox/back/${record.id}`
       const fetch = await repo.runAsync(['fetch', '-q', `box:${record.dir}`, '+refs/heads/*:refs/cocoonbox/box/*', `+${ref}:${ref}`], {
-        extra: { GIT_SSH_COMMAND: this.rsh, GIT_SSH_VARIANT: 'simple' },
+        extra: { GIT_SSH_COMMAND: this.rsh, GIT_SSH_VARIANT: 'simple', BOX_ENDPOINT: this.rshEnv.BOX_ENDPOINT, BOX_TOKEN: this.rshEnv.BOX_TOKEN },
       })
       if (fetch.status !== 0) throw new OffloadError('failed', `git fetch from the box failed (${fetch.status}):\n${fetch.error}`)
       landing = repo.land({ id: record.id, base: record.base, box: ref, index: path.join(this.store.directory(key), 'snapshot.index') })

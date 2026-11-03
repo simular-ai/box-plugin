@@ -332,6 +332,10 @@ function secretsCommand(ctx, flags, words, stdout) {
   if (words.length) {
     const [action, entry] = words
     if (!['add', 'remove'].includes(action) || words.length !== 2) throw new OffloadError('failed', `usage: ${CMD} offload secrets [add|remove ENTRY]`)
+    const rel = entry.startsWith('file:') || entry.startsWith('ssh:') ? entry.slice(entry.indexOf(':') + 1) : null
+    if (rel !== null && (!rel || path.isAbsolute(rel) || rel.split(/[\\/]/).includes('..'))) {
+      throw new OffloadError('failed', `${entry}: name a path inside the repo (file:) or a key in ~/.ssh (ssh:), without ..`)
+    }
     if (!(entry.startsWith('file:') || entry.startsWith('ssh:') || ['aws', 'kube', 'gcloud'].includes(entry))) {
       throw new OffloadError('failed', 'an entry is file:PATH, aws, kube, gcloud or ssh:KEY')
     }
