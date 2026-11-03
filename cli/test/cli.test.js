@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from '../src/args.js'
-import { mcpUrl, maskKey, DEFAULT_MCP_URL } from '../src/constants.js'
+import { mcpUrl, maskKey, DEFAULT_MCP_URL, EXAMPLE_PROMPTS } from '../src/constants.js'
 import { parseWwwAuthenticate, probeEndpoint, checkKey } from '../src/probe.js'
 import { runDoctor } from '../src/cli.js'
 import { sandbox } from './helpers.js'
@@ -80,10 +80,13 @@ test('real CLI: connect --client cursor,codex --yes in a temp HOME, then remove'
   const res = run(['connect', '--client', 'cursor,codex', '--yes'], sb)
   assert.equal(res.status, 0, res.stderr + res.stdout)
   assert.match(res.stdout, /codex mcp login box/)
+  assert.match(res.stdout, /start a new chat \(or restart the app\)/)
+  for (const e of EXAMPLE_PROMPTS) assert.ok(res.stdout.includes(e), `shows the example prompt: ${e}`)
   assert.deepEqual(JSON.parse(sb.read('.cursor/mcp.json')), { mcpServers: { box: { url: DEFAULT_MCP_URL } } })
   assert.match(sb.read('.codex/config.toml'), /\[mcp_servers\.box\]\nurl = "https:\/\/relay\.simular\.cloud\/mcp"/)
   const rm = run(['remove', '--client', 'cursor,codex', '--yes'], sb)
   assert.equal(rm.status, 0, rm.stderr)
+  assert.ok(!rm.stdout.includes(EXAMPLE_PROMPTS[0]), 'remove shows no example prompts')
   assert.deepEqual(JSON.parse(sb.read('.cursor/mcp.json')), { mcpServers: {} })
 })
 
@@ -108,4 +111,19 @@ test('real CLI: unknown client and missing --client in non-interactive mode', ()
   assert.match(run(['connect', '--client', 'notepad'], sb).stderr, /unknown client/)
   sb.write('.cursor/mcp.json', '{}')
   assert.match(run(['connect'], sb).stderr, /--client cursor/)
+})
+
+test('real CLI: example prompts only after something was set up', () => {
+  const sb = sandbox()
+  assert.equal(EXAMPLE_PROMPTS.length, 3)
+  for (const e of EXAMPLE_PROMPTS) assert.match(e, /^Use box to /)
+  const dry = run(['connect', '--client', 'cursor', '--yes', '--dry-run'], sb)
+  assert.equal(dry.status, 0, dry.stderr)
+  assert.ok(!dry.stdout.includes(EXAMPLE_PROMPTS[0]), 'a dry run sets nothing up')
+  sb.write('.cursor/mcp.json', '{ not json')
+  const broken = run(['connect', '--client', 'cursor', '--yes'], sb)
+  assert.notEqual(broken.status, 0)
+  assert.ok(!broken.stdout.includes(EXAMPLE_PROMPTS[0]), 'no example prompts when every app failed')
+  const doctor = run(['doctor', '--client', 'cursor'], sb)
+  assert.ok(!doctor.stdout.includes(EXAMPLE_PROMPTS[0]), 'doctor shows no example prompts')
 })

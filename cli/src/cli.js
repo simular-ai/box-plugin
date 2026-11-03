@@ -3,7 +3,7 @@ import * as p from '@clack/prompts'
 import { parseArgs } from './args.js'
 import { createContext } from './context.js'
 import { CLIENTS, findClient } from './clients/index.js'
-import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, looksLikeKey, validServerName } from './constants.js'
+import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, EXAMPLE_PROMPTS, looksLikeKey, validServerName } from './constants.js'
 import { probeEndpoint, checkKey } from './probe.js'
 
 const VERSION = createRequire(import.meta.url)('../package.json').version
@@ -175,6 +175,7 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
     if (key === undefined) return 1
   }
   let failed = 0
+  let connected = 0
   const next = []
   for (const client of clients) {
     // The spinner draws with escape codes; in logs and CI print plain lines instead.
@@ -186,6 +187,7 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
       for (const b of res.backups || []) p.log.message(`  backup: ${b}`)
       for (const w of res.warnings || []) p.log.warn(`  ${w}`)
       for (const n of res.next || []) next.push(`${client.name}: ${n}`)
+      connected++
     } catch (err) {
       failed++
       spin.stop(`${client.name}: failed`, 1)
@@ -193,6 +195,9 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
     }
   }
   if (next.length) p.note(next.join('\n'), 'Next')
+  if (connected && !ctx.dryRun) {
+    p.note([`After signing in, start a new chat (or restart the app) so box's tools load. Then try:`, ...EXAMPLE_PROMPTS.map((e) => `  ${e}`)].join('\n'), 'Try box')
+  }
   p.outro(`Watch your box live: ${WATCH_URL}  |  Keys and connected apps: ${KEYS_URL}  |  Check: npx @simular-ai/box doctor`)
   return failed ? 1 : 0
 }
