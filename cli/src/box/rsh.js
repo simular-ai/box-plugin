@@ -73,7 +73,9 @@ export function terminfo(term) {
  * wait in memory), then eof; signals and window sizes jump the queue.
  */
 export class Input {
-  constructor(stdin) {
+  /** filter, when given, maps each stdin chunk (the tty escape); it may end the input by returning disconnect. */
+  constructor(stdin, { filter } = {}) {
+    this.filter = filter
     this.urgent = []
     this.wake = null
     this.reader = stdin ? stdin[Symbol.asyncIterator]() : null
@@ -114,16 +116,75 @@ export class Input {
       const got = await Promise.race([this.pending, urgent])
       if (!got) continue
       this.pending = null
-      if (got.v.done) this.ended = true
-      else yield { stdin: Buffer.isBuffer(got.v.value) ? got.v.value : Buffer.from(got.v.value) }
+      if (got.v.done) {
+        this.ended = true
+        continue
+      }
+      let data = Buffer.isBuffer(got.v.value) ? got.v.value : Buffer.from(got.v.value)
+      if (this.filter) {
+        const r = this.filter(data)
+        data = r.data
+        if (r.disconnect) {
+          if (data.length) yield { stdin: data }
+          // stop reading; the caller cancels the stream
+          this.ended = true
+          this.eofSent = true
+          continue
+        }
+      }
+      if (data.length) yield { stdin: data }
     }
+  }
+}
+
+const TILDE = 0x7e
+const DOT = 0x2e
+
+/**
+ * escapeFilter is ssh's escape for a raw terminal: `~.` at the start of a line disconnects, `~~` sends one `~`, and a
+ * `~` before anything else is sent as typed. Raw mode sends Ctrl-C to the box, so this is the way out of a stuck stream.
+ */
+export function escapeFilter(onDisconnect) {
+  let lineStart = true
+  let pending = false
+  return (buf) => {
+    const out = []
+    for (const b of buf) {
+      if (pending) {
+        pending = false
+        if (b === DOT) {
+          onDisconnect()
+          return { data: Buffer.from(out), disconnect: true }
+        }
+        out.push(TILDE)
+        if (b === TILDE) {
+          lineStart = false
+          continue
+        }
+      } else if (lineStart && b === TILDE) {
+        pending = true
+        continue
+      }
+      out.push(b)
+      lineStart = b === 0x0d || b === 0x0a
+    }
+    return { data: Buffer.from(out), disconnect: false }
   }
 }
 
 /** writeTo writes data to a stream and resolves when it may take more, so a slow local reader slows the box. */
 export function writeTo(stream, data) {
+  if (stream.destroyed || stream.writableEnded) return undefined
   if (stream.write(data)) return undefined
-  return new Promise((resolve) => stream.once('drain', resolve))
+  return new Promise((resolve) => {
+    const done = () => {
+      stream.off('drain', done)
+      stream.off('close', done)
+      resolve()
+    }
+    stream.once('drain', done)
+    stream.once('close', done)
+  })
 }
 
 /**
@@ -131,10 +192,27 @@ export function writeTo(stream, data) {
  * its link). Resolves to the exit code; a second INT or TERM rejects with code 255.
  */
 export async function attach(connection, boxId, start, { tty = false, tap = () => {}, stdin = process.stdin, stdout = process.stdout, stderr = process.stderr } = {}) {
-  const input = new Input(stdin)
+  let call
+  let ended = null // why this side ended the stream: 'escape' or 'pipe'
+  const end = (why) => {
+    if (ended) return
+    ended = why
+    call?.cancel()
+  }
+  const raw = tty && stdin?.isTTY
+  const input = new Input(stdin, { filter: raw ? escapeFilter(() => end('escape')) : undefined })
   const restore = []
+  // A closed local reader (`rsh box cat big | head`) ends the stream quietly with 255, as ssh does, instead of a crash.
+  const onPipeError = (err) => {
+    if (err?.code === 'EPIPE' || err?.code === 'ERR_STREAM_DESTROYED') end('pipe')
+  }
+  for (const s of [stdout, stderr]) {
+    s.on('error', onPipeError)
+    restore.push(() => s.off('error', onPipeError))
+  }
   if (tty) {
-    if (stdin.isTTY) {
+    if (raw) {
+      stderr.write('box: ~. at the start of a line disconnects\r\n')
       stdin.setRawMode(true)
       restore.push(() => stdin.setRawMode(false))
       const onResize = () => input.send({ resize: { rows: stdout.rows || 24, cols: stdout.columns || 80 } })
@@ -142,7 +220,6 @@ export async function attach(connection, boxId, start, { tty = false, tap = () =
       restore.push(() => process.off('SIGWINCH', onResize))
     }
   }
-  let call
   let forwarded = false
   const onSignal = (name) => () => {
     if (forwarded) {
@@ -167,11 +244,16 @@ export async function attach(connection, boxId, start, { tty = false, tap = () =
       start,
       input,
       (data, isStderr) => {
+        if (ended) return undefined
         tap(data)
         return writeTo(isStderr ? stderr : stdout, data)
       },
       { onCall: (c) => (call = c) },
     )
+  } catch (err) {
+    if (!ended) throw err
+    if (ended === 'escape') stderr.write('\r\nbox: disconnected\r\n')
+    return RSH_FAILURE
   } finally {
     for (const r of restore.splice(0)) r()
     stdin?.pause?.()

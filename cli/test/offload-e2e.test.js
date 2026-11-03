@@ -96,6 +96,17 @@ test('rsh passes bytes, exit codes and stderr, and drops rsync host words', { sk
   assert.match(exit.stderr, /err/)
   const none = await cli(['rsh', '--box', 'main'])
   assert.equal(none.code, 255)
+  // a closed local reader ends rsh quietly with 255 (no stack trace), and the box command is cancelled
+  const pipe = await new Promise((resolve) => {
+    const child = spawn('bash', ['-c', `"${process.execPath}" "${BIN}" rsh --box main 'yes | head -c 50000000' | head -c 10 >/dev/null; echo "rc=\${PIPESTATUS[0]}"`], { env })
+    let out = ''
+    let err = ''
+    child.stdout.on('data', (d) => (out += d))
+    child.stderr.on('data', (d) => (err += d))
+    child.on('close', () => resolve({ out, err }))
+  })
+  assert.match(pipe.out, /rc=255/)
+  assert.ok(!/\n\s+at /.test(pipe.err), pipe.err)
   const bad = await cli(['rsh', '--box', 'main', 'true'], { extraEnv: { BOX_TOKEN: 'cb_wrong' } })
   assert.equal(bad.code, 255)
   assert.match(bad.stderr, /invalid bearer token/)

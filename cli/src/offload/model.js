@@ -163,8 +163,9 @@ export function tmuxSession(record) {
 const OSC8 = /\x1B\]8;[^;\x07\x1B]*;([^\x07\x1B]+)(?:\x07|\x1B\\)/g
 // eslint-disable-next-line no-control-regex
 const ESCAPES = /\x1B(?:\][^\x07\x1B]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])/g
-// eslint-disable-next-line no-control-regex
-const LINK = /https:\/\/[^\s\x07"'<>]+/g
+// A link is only RFC 3986 URL characters; quotes, spaces, control bytes, ^ | < > \ { } and backticks end it.
+const LINK = /https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&*+,;=%]+/g
+const WHOLE_LINK = /^https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&*+,;=%]+$/
 
 /** findSignInLink returns the first allowed link in output: an OSC 8 target, else a link in the text without escapes. */
 export function findSignInLink(output, kindName) {
@@ -172,7 +173,8 @@ export function findSignInLink(output, kindName) {
   const text = output.replace(ESCAPES, '')
   const links = [...text.matchAll(LINK)].map((m) => m[0].replace(/[.,;:!?)\]}]+$/, ''))
   for (const candidate of [...targets, ...links]) {
-    if (signInAllowed(candidate, kindName)) return candidate
+    // the parsed, normalized form is what opens; a target with characters outside a URL's is skipped
+    if (WHOLE_LINK.test(candidate) && signInAllowed(candidate, kindName)) return new URL(candidate).href
   }
   return null
 }

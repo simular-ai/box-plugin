@@ -194,3 +194,63 @@ test('browser login: PKCE, state and issuer checked, the code redeemed for a dev
   assert.equal(deviceName('mac.local'), 'mac')
   assert.ok(authorizeUrl('https://e', { redirect: 'r', challenge: 'c', state: 's', device: 'd' }).startsWith('https://e/cb/oauth/authorize?'))
 })
+
+test('browser: one argv element, no shell, on every platform; win32 never goes through cmd', async () => {
+  const { browserCommand, openBrowser } = await import('../src/box/browser.js')
+  const evil = 'https://claude.ai/x?a=1&calc|whoami^%PATH%'
+  for (const platform of ['win32', 'darwin', 'linux']) {
+    const [cmd, args] = browserCommand(evil, { env: {}, platform })
+    assert.notEqual(cmd, 'cmd')
+    assert.equal(args[args.length - 1], new URL(evil).href, platform)
+    assert.ok(!args.some((a) => a === '/c'))
+  }
+  assert.deepEqual(browserCommand(evil, { env: {}, platform: 'win32' }), ['rundll32', ['url.dll,FileProtocolHandler', new URL(evil).href]])
+  assert.equal(browserCommand('file:///etc/passwd', { env: {} }), null)
+  assert.equal(browserCommand('javascript:alert(1)', { env: {} }), null)
+  const seen = []
+  const fakeSpawn = (cmd, args, opts) => {
+    seen.push({ cmd, args, opts })
+    return { on: () => ({ unref() {} }) }
+  }
+  assert.equal(openBrowser(evil, { env: {}, platform: 'win32', spawn: fakeSpawn }), true)
+  assert.equal(seen[0].opts.shell, false)
+  assert.equal(seen[0].args.length, 2)
+})
+
+test('browser: a real opener gets the URL as one argument and no shell runs its metacharacters', { skip: process.platform === 'win32' }, async () => {
+  const { openBrowser } = await import('../src/box/browser.js')
+  const dir = tmpdir()
+  const out = path.join(dir, 'argv.json')
+  const pwned = path.join(dir, 'pwned')
+  const opener = path.join(dir, 'opener')
+  fs.writeFileSync(opener, `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(out)}, JSON.stringify(process.argv.slice(2)))\n`, { mode: 0o755 })
+  const evil = `https://claude.ai/x?a=1&touch ${pwned};touch ${pwned}|touch ${pwned}^%PATH%$(touch ${pwned})`
+  assert.equal(openBrowser(evil, { env: { BROWSER: opener } }), true)
+  for (let i = 0; i < 100 && !fs.existsSync(out); i++) await new Promise((r) => setTimeout(r, 20))
+  const argv = JSON.parse(fs.readFileSync(out, 'utf8'))
+  assert.deepEqual(argv, [new URL(evil).href])
+  assert.ok(!fs.existsSync(pwned))
+})
+
+test('sign-in link: the normalized URL; | ^ and quotes end a link, a target with them is skipped', () => {
+  assert.equal(findSignInLink('open https://claude.ai/x?&calc now', 'claude'), 'https://claude.ai/x?&calc')
+  assert.equal(findSignInLink('https://claude.ai/x|calc', 'claude'), 'https://claude.ai/x')
+  assert.equal(findSignInLink('https://claude.ai/x^calc', 'claude'), 'https://claude.ai/x')
+  assert.equal(findSignInLink('\x1b]8;;https://claude.ai/x|calc\x07t\x1b]8;;\x07', 'claude'), null)
+  assert.equal(findSignInLink('https://CLAUDE.ai/a%20b', 'claude'), 'https://claude.ai/a%20b')
+})
+
+test('tty escape: ~. at line start disconnects, ~~ sends ~, other ~ pass through', async () => {
+  const { escapeFilter } = await import('../src/box/rsh.js')
+  let gone = 0
+  const f = escapeFilter(() => gone++)
+  assert.deepEqual(f(Buffer.from('a~b')), { data: Buffer.from('a~b'), disconnect: false })
+  assert.deepEqual(f(Buffer.from('\r~~x')), { data: Buffer.from('\r~x'), disconnect: false })
+  assert.deepEqual(f(Buffer.from('\r~')), { data: Buffer.from('\r'), disconnect: false })
+  assert.deepEqual(f(Buffer.from('q')), { data: Buffer.from('~q'), disconnect: false })
+  assert.equal(gone, 0)
+  assert.deepEqual(f(Buffer.from('\r~.')), { data: Buffer.from('\r'), disconnect: true })
+  assert.equal(gone, 1)
+  const g = escapeFilter(() => gone++)
+  assert.equal(g(Buffer.from('~.')).disconnect, true, 'the first byte is a line start')
+})

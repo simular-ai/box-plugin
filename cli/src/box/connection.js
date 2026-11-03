@@ -48,7 +48,15 @@ export class BoxConnection {
     const target = `${url.hostname}:${url.port || (url.protocol === 'https:' ? 443 : 80)}`
     const creds = url.protocol === 'https:' ? grpc.credentials.createSsl() : grpc.credentials.createInsecure()
     const { Session, Boxes } = loadServices()
-    const options = { 'grpc.max_receive_message_length': MAX_MESSAGE, 'grpc.max_send_message_length': MAX_MESSAGE }
+    const options = {
+      'grpc.max_receive_message_length': MAX_MESSAGE,
+      'grpc.max_send_message_length': MAX_MESSAGE,
+      // HTTP/2 pings while a call is open, so a half-open stream (sleep, a network change) fails within ~45 s instead of
+      // holding a raw terminal; the relay's load balancer answers them, and no ping goes out on an idle channel.
+      'grpc.keepalive_time_ms': 30000,
+      'grpc.keepalive_timeout_ms': 15000,
+      'grpc.keepalive_permit_without_calls': 0,
+    }
     this.endpoint = endpoint
     this.token = token
     this.boxes = new Boxes(target, creds, options)

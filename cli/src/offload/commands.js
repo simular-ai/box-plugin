@@ -1,7 +1,7 @@
-import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { openBrowser } from '../box/browser.js'
 import { BoxConnection, describe } from '../box/connection.js'
 import { boxHome, endpointUrl } from '../box/endpoint.js'
 import { browserLogin, revoke } from '../box/login.js'
@@ -64,21 +64,6 @@ export function connect(ctx, override) {
   return new BoxConnection(endpoint, saved.token)
 }
 
-function openBrowser(url, env) {
-  const [cmd, args] = env.BROWSER
-    ? [env.BROWSER, [url]]
-    : process.platform === 'darwin'
-      ? ['open', [url]]
-      : process.platform === 'win32'
-        ? ['cmd', ['/c', 'start', '', url]]
-        : ['xdg-open', [url]]
-  try {
-    spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref()
-  } catch {
-    // the URL is printed too
-  }
-}
-
 // ---------- login ----------
 
 export async function login(ctx, flags, { stdin = process.stdin, stderr = process.stderr, stdout = process.stdout } = {}) {
@@ -93,7 +78,7 @@ export async function login(ctx, flags, { stdin = process.stdin, stderr = proces
     token = await browserLogin(endpoint, {
       open: (url) => {
         stderr.write(`box: allow this computer in the browser; if no page opened, open\n  ${url}\n`)
-        openBrowser(url, ctx.env)
+        openBrowser(url, { env: ctx.env })
       },
     })
     source = 'browser'
@@ -409,7 +394,7 @@ async function boxCli(ctx, flags, sub, kindName, { stdout, stderr }) {
       const link = findSignInLink(seen, kindName)
       if (!link) return
       opened = true
-      openBrowser(link, ctx.env)
+      openBrowser(link, { env: ctx.env })
       stderr.write(`\r\nbox: opened the sign-in page in your browser (${new URL(link).hostname})\r\n`)
     }
     const term = ctx.env.TERM || ''
