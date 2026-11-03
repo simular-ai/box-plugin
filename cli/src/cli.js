@@ -196,7 +196,7 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
   }
   if (next.length) p.note(next.join('\n'), 'Next')
   if (connected && !ctx.dryRun) {
-    p.note([`After signing in, start a new chat (or restart the app) so box's tools load. Then try:`, ...EXAMPLE_PROMPTS.map((e) => `  ${e}`)].join('\n'), 'Try box')
+    p.note([`After signing in (or setting your key), start a new chat (or restart the app) so box's tools load. Then try:`, ...EXAMPLE_PROMPTS.map((e) => `  ${e}`)].join('\n'), 'Try box')
   }
   p.outro(`Watch your box live: ${WATCH_URL}  |  Keys and connected apps: ${KEYS_URL}  |  Check: npx @simular-ai/box doctor`)
   return failed ? 1 : 0
