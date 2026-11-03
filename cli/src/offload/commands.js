@@ -191,7 +191,8 @@ export function offloadFailed(err, flags, { stdout, stderr }) {
   } else {
     printFindings(err.findings, stdout)
     if (err.findings.some((f) => f.outcome === 'block' && f.check.includes('cli'))) {
-      stdout.write(`Install or sign in the box CLI from this terminal: ${CMD} offload install-cli --kind <K>, then ${CMD} offload sign-in --kind <K>\n`)
+      const k = `--kind ${flags.kind || currentKind(process.env) || '<claude|codex|cursor>'}${flags.box ? ` --box ${flags.box}` : ''}`
+      stdout.write(`Install or sign in the box CLI from your own terminal: ${CMD} offload install-cli ${k} (when it is missing), then ${CMD} offload sign-in ${k}\n`)
     }
     stderr.write(`box: ${err.message}${code === 1 ? '; nothing changed on this computer' : ''}\n`)
   }

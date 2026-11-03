@@ -207,7 +207,7 @@ test('a box-side block exits 3 and names the box CLI commands', { skip, timeout:
     const res = await cli(['offload', '--kind', 'claude'], { cwd: repo, extraEnv: { BOX_ENDPOINT: blocked.endpoint } })
     assert.equal(res.code, 3, res.stderr)
     assert.match(res.text, /block\s+cli: claude is signed out/)
-    assert.match(res.text, /offload sign-in --kind/)
+    assert.match(res.text, /offload sign-in --kind claude/)
   } finally {
     await blocked.stop()
   }
