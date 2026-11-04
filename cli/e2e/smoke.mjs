@@ -22,7 +22,7 @@ assert.equal(r.status, 0)
 assert.match(r.stdout, /npx @simular-ai\/box connect/)
 
 const before = fs.readdirSync(home).sort()
-r = run('connect', '--client', 'cursor,codex,opencode,vscode,hermes', '--yes', '--dry-run')
+r = run('connect', '--client', 'cursor,codex,opencode,vscode,gemini-cli,hermes', '--yes', '--dry-run')
 assert.equal(r.status, 0, r.stderr)
 assert.match(r.stdout, /would write/)
 assert.deepEqual(fs.readdirSync(home).sort(), before, 'dry run writes nothing')

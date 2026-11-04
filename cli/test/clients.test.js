@@ -114,6 +114,34 @@ test('vscode: writes servers.box with type http next to other servers', () => {
   assert.deepEqual(doc.inputs, [])
 })
 
+test('gemini-cli: merges mcpServers.box as an http server, keeps comments and settings, idempotent, removes', () => {
+  const sb = sandbox()
+  const file = sb.write('.gemini/settings.json', '{\n  // mine\n  "theme": "Default",\n  "mcpServers": { "other": { "httpUrl": "https://example.com/mcp" } }\n}\n')
+  const res = client('gemini').connect(sb.ctx)
+  assert.match(res.next[0], /\/mcp auth box/)
+  assert.equal(res.backups.length, 1)
+  const text = sb.read('.gemini/settings.json')
+  assert.match(text, /\/\/ mine/)
+  const doc = jsonc.parse(text)
+  assert.deepEqual(doc.mcpServers.box, { type: 'http', url: DEFAULT_MCP_URL })
+  assert.equal(doc.theme, 'Default')
+  assert.deepEqual(client('gemini').connect(sb.ctx).actions, [])
+  assert.equal(backups(path.dirname(file)).length, 1, 'a no-op re-run makes no new backup')
+  assert.equal(client('gemini-cli').status(sb.ctx).entries[0].url, DEFAULT_MCP_URL)
+  client('gemini-cli').remove(sb.ctx)
+  assert.deepEqual(Object.keys(jsonc.parse(sb.read('.gemini/settings.json')).mcpServers), ['other'])
+})
+
+test('gemini-cli: a foreign box given as httpUrl is recognised and left alone', () => {
+  const sb = sandbox()
+  const original = JSON.stringify({ mcpServers: { box: { httpUrl: 'https://mcp.box.com' } } }, null, 2)
+  sb.write('.gemini/settings.json', original)
+  assert.throws(() => client('gemini-cli').connect(sb.ctx), (e) => e.foreign)
+  assert.equal(client('gemini-cli').status(sb.ctx).foreign.url, 'https://mcp.box.com')
+  client('gemini-cli').remove(sb.ctx)
+  assert.equal(sb.read('.gemini/settings.json'), original)
+})
+
 test('hermes: OAuth entry keeps comments; key mode puts the key only in .env (0600)', () => {
   const sb = sandbox()
   sb.write('.hermes/config.yaml', fixture('hermes.before.yaml'))
@@ -208,7 +236,7 @@ test('claude-desktop: writes nothing, prints connector steps', () => {
 test('dry run writes nothing for file-based clients', () => {
   const sb = sandbox()
   const ctx = { ...sb.ctx, dryRun: true }
-  for (const id of ['cursor', 'codex', 'opencode', 'vscode', 'hermes']) {
+  for (const id of ['cursor', 'codex', 'opencode', 'vscode', 'gemini-cli', 'hermes']) {
     const res = client(id).connect(ctx, { mode: 'oauth' })
     assert.ok(res.actions[0].startsWith('would'), id)
   }
@@ -224,6 +252,7 @@ test('json clients: a foreign box blocks connect, survives remove, and --name in
     ['cursor', '.cursor/mcp.json', ['mcpServers']],
     ['opencode', '.config/opencode/opencode.json', ['mcp']],
     ['vscode', '.config/Code/User/mcp.json', ['servers']],
+    ['gemini-cli', '.gemini/settings.json', ['mcpServers']],
   ]
   for (const [id, rel, container] of cases) {
     const sb = sandbox()

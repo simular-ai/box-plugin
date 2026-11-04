@@ -20,8 +20,9 @@ The command is `simular-box` (`box` belongs to box.com's CLI), so after `npm i -
 | App | `--client` | What connect does | Sign-in |
 | --- | --- | --- | --- |
 | Claude Code | `claude-code` | Installs the [`claude/`](../claude/) plugin (box server + box skill) with `claude plugin install box@simular-box`. With `BOX_MCP_URL` set, `claude mcp add --scope user --transport http box <url>` instead | OAuth: `/mcp` → box → Authenticate |
-| Codex | `codex` | Writes `[mcp_servers.box]` to `$CODEX_HOME/config.toml` (default `~/.codex`) | OAuth: `codex mcp login box` |
+| Codex | `codex` | Writes `[mcp_servers.box]` to `$CODEX_HOME/config.toml` (default `~/.codex`) | OAuth: `codex mcp login box`, or Settings → MCP servers → Authenticate in the Codex app |
 | Cursor | `cursor` | Merges `mcpServers.box` into `~/.cursor/mcp.json` | OAuth: Settings → MCP → Login |
+| Gemini CLI | `gemini-cli` | Merges `mcpServers.box` (`type: http`) into `~/.gemini/settings.json` | OAuth: `/mcp auth box` (in a trusted folder) |
 | OpenCode | `opencode` | Merges `mcp.box` (`type: remote`) into `~/.config/opencode/opencode.json(c)` | OAuth: `opencode mcp auth box` |
 | Hermes Agent | `hermes` | Writes `mcp_servers.box` to `$HERMES_HOME/config.yaml` (default `~/.hermes`); restarts a running gateway | OAuth (`hermes mcp login box`) or `--auth key` |
 | OpenClaw | `openclaw` | `openclaw mcp set box …` with `transport: streamable-http`; restarts a running Gateway when the key changes | OAuth (`openclaw mcp login box`) or `--auth key` |
@@ -30,7 +31,7 @@ The command is `simular-box` (`box` belongs to box.com's CLI), so after `npm i -
 
 Pick apps without prompts with `--client cursor,codex --yes`; `--yes` alone picks every app found. `--dry-run` shows what would change.
 
-The CLI only changes or removes a server that points at box by Simular (`relay.simular.cloud`, its staging host, `mcp.box.simular.ai`, or your `BOX_MCP_URL`). If an app already has a different server named `box`, such as box.com's MCP server, `connect` stops without changing anything, and `remove` leaves it alone. To add box next to it, use `--name simular-box`. A symlinked config stays a symlink: the file it points to is updated.
+The CLI only changes or removes a server that points at box by Simular (`relay.simular.cloud`, its staging host, `mcp.box.simular.ai`, or your `BOX_MCP_URL`). If an app already has a different server named `box`, such as box.com's MCP server, `connect` stops without changing anything, and `remove` leaves it alone. To add box next to it, use `--name simular-box`. A symlinked config stays a symlink: the file it points to is updated. If a config can't be written (owned by another user, or locked by the app), connect says so; for Codex it prints the steps to add box in the Codex app's Settings instead.
 
 ## Sign-in
 

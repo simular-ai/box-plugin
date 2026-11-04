@@ -1,7 +1,7 @@
 {
   "name": "@simular-ai/box",
   "version": "0.1.2",
-  "description": "Connect box by Simular (a cloud computer your AI agent drives over MCP) to Claude Code, Codex, Cursor, OpenCode, Hermes, OpenClaw and more in one command.",
+  "description": "Connect box by Simular (a cloud computer your AI agent drives over MCP) to Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Hermes, OpenClaw and more in one command.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -45,6 +45,7 @@
     "codex",
     "cursor",
     "opencode",
+    "gemini-cli",
     "hermes",
     "openclaw"
   ],
