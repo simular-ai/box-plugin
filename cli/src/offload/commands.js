@@ -40,7 +40,8 @@ export const OFFLOAD_HELP = `Offload (move a coding task into your box and back)
   offload sign-in [--box B] [--kind K]  run the box CLI's own login in the box on this terminal; its
                                         sign-in link opens in this computer's browser
   back [--interrupt] [--json]           bring the task back: the box agent's hand-over and its commits,
-                                        merged against the offload's snapshot
+                                        merged against the offload's snapshot; it first waits for the box
+                                        agent to go idle (--interrupt stops its current step instead)
 
 offload and back exit 0 when done, 1 on a failure (nothing changed here), 3 when the preflight blocks,
 and 4 when it warns and --yes was not given: ask the user, then run again with --yes.`

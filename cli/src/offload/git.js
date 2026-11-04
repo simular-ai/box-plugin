@@ -139,7 +139,9 @@ export class GitRepo {
   /**
    * land brings the box's snapshot S' home against base S: a fast-forward when this repo still equals S, else a clean
    * three-way merge applied uncommitted that leaves the user's uncommitted paths alone, else a branch at S' with this
-   * work tree untouched. Returns {kind: unchanged|fastForward|merged|branch, files?, branch?, conflicts?}.
+   * work tree untouched. Returns {kind: unchanged|fastForward|merged|branch, files?, branch?, conflicts?}; fastForward and
+   * merged also carry head (the box's commit HEAD's branch moved to, else null) and uncommitted (paths the work tree holds
+   * beyond that HEAD).
    */
   land({ id, base, box, index, now = new Date() }) {
     const start = this.verify(base + '^')
@@ -151,9 +153,14 @@ export class GitRepo {
     if (boxTree === baseTree && boxHead === start) return { kind: 'unchanged' }
     const follows = boxHead ? (start ? boxHead === start || this.run(['merge-base', '--is-ancestor', start, boxHead]).status === 0 : true) : false
     const move = boxHead && boxHead !== head && head === start && follows ? { old: head, new: boxHead } : null
+    // uncommitted lists what the work tree now holds that the (possibly moved) HEAD does not
+    const uncommitted = (to) => {
+      const at = move ? move.new : head
+      return this.git(['diff-tree', '-r', '--name-only', '--no-renames', at ? tree(at) : this.git(['mktree'], { input: '' }), to]).split('\n').filter(Boolean)
+    }
     if (head === start && localTree === baseTree && (follows || !boxHead)) {
       if (!this.#settle({ id, from: base, to: box, move, scratch: index })) return this.#branch(box, [], now)
-      return { kind: 'fastForward' }
+      return { kind: 'fastForward', head: move ? move.new : null, uncommitted: uncommitted(boxTree) }
     }
     const merge = this.run(['merge-tree', '--write-tree', '--name-only', `--merge-base=${base}`, local, box])
     const lines = merge.out.toString('utf8').replace(/\n$/, '').split('\n')
@@ -172,7 +179,7 @@ export class GitRepo {
     const touched = files.filter((f) => dirty.has(f))
     if (touched.length) return this.#branch(box, touched, now)
     if (!this.#settle({ id, from: localTree, to: merged, move, scratch: index })) return this.#branch(box, [], now)
-    return { kind: 'merged', files }
+    return { kind: 'merged', files, head: move ? move.new : null, uncommitted: uncommitted(merged) }
   }
 
   // settle moves the work tree between trees and, with move, HEAD's branch and the index; the index is built aside under
@@ -241,14 +248,20 @@ export class GitRepo {
   }
 }
 
+const left = (paths) => (paths && paths.length ? `; uncommitted: ${paths.join(', ')}` : '')
+
 export function landingSummary(l) {
   switch (l.kind) {
     case 'unchanged':
       return 'unchanged: the box made no change'
     case 'fastForward':
-      return "fast-forward: this repo now holds the box's commits and changes"
+      return l.head
+        ? `fast-forward: this branch now points at the box's commit ${l.head.slice(0, 7)}${left(l.uncommitted)}`
+        : `fast-forward: the box made no commit; its changes are applied uncommitted (${(l.uncommitted || []).join(', ')})`
     case 'merged':
-      return `merged: the box's changes are applied uncommitted (${l.files.join(', ')})`
+      return l.head
+        ? `merged: this branch now points at the box's commit ${l.head.slice(0, 7)}; the changes you made meanwhile are kept${left(l.uncommitted)}`
+        : `merged: the box's changes are applied uncommitted (${l.files.join(', ')})`
     case 'branch':
       return (
         `conflict: the box's work is on the branch ${l.branch}; your work tree is untouched` +

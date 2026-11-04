@@ -16,6 +16,8 @@ import { tarParts } from './tar.js'
 export const BACK_WAIT_S = 600
 // How long a BACK may go without any hook from the box CLI before it is pasted again.
 export const BACK_RETRY_S = 60
+// How often back polls the box CLI's status while it waits for it to go idle before asking for the hand-over.
+export const IDLE_POLL_MS = 2000
 
 export class Offloader {
   /**
@@ -225,7 +227,7 @@ export class Offloader {
   // ---------- back ----------
 
   /** back asks the box agent for its hand-over, waits for it, fetches the box's commits and lands them against S, then ends the box CLI session. */
-  async back(key, { interrupt = false, onEntry = () => {}, waitS = BACK_WAIT_S, retryS = BACK_RETRY_S } = {}) {
+  async back(key, { interrupt = false, onEntry = () => {}, waitS = BACK_WAIT_S, retryS = BACK_RETRY_S, pollMs = IDLE_POLL_MS } = {}) {
     const record = this.store.record(key)
     if (!record) throw new OffloadError('failed', 'nothing of this repo is in the box')
     let { entries } = await this.read(key, 0)
@@ -235,14 +237,17 @@ export class Offloader {
     // hook) is pasted again once, with --interrupt so it is not queued behind that phantom turn.
     let hookBefore = null
     let retryAt = null
+    const deadline = Date.now() + waitS * 1000
     if (!back) {
+      // BACK pasted while the box CLI is still ending a turn can vanish (delivery_unconfirmed), so wait for it to be idle;
+      // --interrupt stops the current step anyway and skips the wait.
+      if (!interrupt) await this.#untilIdle(key, deadline, waitS, pollMs)
       hookBefore = await this.#hookAt(key)
       const sent = await this.verb(['send', '--repo', key, '--back', ...(interrupt ? ['--interrupt'] : [])], [Buffer.alloc(0)])
       this.progress('asked the box agent for its hand-over; waiting')
       // only a paste into an idle CLI can vanish; a queued BACK waits for a real turn to end
       if (sent.delivery === 'pasted') retryAt = Date.now() + retryS * 1000
     }
-    const deadline = Date.now() + waitS * 1000
     while (!back) {
       let left = Math.max(1, Math.ceil((deadline - Date.now()) / 1000))
       if (retryAt) left = Math.min(left, Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)))
@@ -284,6 +289,34 @@ export class Offloader {
     await this.verb(['end', '--repo', key])
     this.store.remove(key)
     return { record, handover: back.body, file, landing }
+  }
+
+  /**
+   * untilIdle returns once the repo's box CLI session has been idle (or blocked, after an unconfirmed delivery) on two
+   * polls in a row, or at once when the box reports no session status. It fails on a stopped session, and when the
+   * session is still busy at the deadline, before anything was sent.
+   */
+  async #untilIdle(key, deadline, waitS, pollMs) {
+    let readyBefore = false
+    let said = false
+    for (;;) {
+      const status = (await this.status(key)).find((x) => x.repo === key)?.status || ''
+      if (status === 'stopped') throw new OffloadError('failed', 'the box CLI session stopped without handing the work back')
+      const ready = !status || status === 'idle' || status === 'blocked'
+      if (ready && (readyBefore || !status)) return
+      readyBefore = ready
+      if (!ready && !said) {
+        this.progress(`the box agent is ${status}; waiting for it to go idle before asking for its hand-over`)
+        said = true
+      }
+      if (Date.now() >= deadline) {
+        throw new OffloadError(
+          'failed',
+          `the box agent is still ${status} after ${Math.round(waitS / 60)} min; nothing was sent. Run back again later, or back --interrupt to stop its current step and hand back now`,
+        )
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.min(pollMs, deadline - Date.now()))))
+    }
   }
 
   /** hookAt is when the repo's box CLI last ran a hook, from `offload status`; null when unknown. */

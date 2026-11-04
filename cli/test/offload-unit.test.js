@@ -266,7 +266,7 @@ test('back pastes BACK again once when the box CLI never took it, and only after
     let posted = false
     class Fake extends Offloader {
       async verb(args) {
-        if (args[0] === 'status') return { sessions: [{ repo: 'k1', status: 'working', hook_at_ms: 5 }] }
+        if (args[0] === 'status') return { sessions: [{ repo: 'k1', status: sends.length ? 'working' : 'idle', hook_at_ms: 5 }] }
         if (args[0] === 'send') {
           sends.push(args.slice(3).join(' '))
           if (sends.length === 2) posted = true
@@ -280,7 +280,7 @@ test('back pastes BACK again once when the box CLI never took it, and only after
       }
     }
     const f = new Fake({ connection: { endpoint: 'e', token: 't' }, box: { id: 'b' }, store, rsh: 'x', env: {} })
-    const out = await f.back('k1', { retryS: 0.05, waitS: 1 }).catch((e) => e)
+    const out = await f.back('k1', { retryS: 0.05, waitS: 1, pollMs: 5 }).catch((e) => e)
     store.save({ id: 'id1', repo: 'k1', box: 'b', box_name: 'main', name: 'r', dir: '/w/r', kind: 'claude', base: null, top: null, started_at_ms: 0, seen: 0 })
     return { sends, out }
   }
@@ -290,4 +290,74 @@ test('back pastes BACK again once when the box CLI never took it, and only after
   const queued = await run('queued')
   assert.deepEqual(queued.sends, ['--back'], 'a queued BACK is never re-sent')
   assert.match(queued.out.message, /has not handed the work back/)
+})
+
+test('back waits for the box agent to be idle twice in a row before asking for its hand-over', async () => {
+  const { Offloader } = await import('../src/offload/offloader.js')
+  const { OffloadStore } = await import('../src/offload/store.js')
+  const home = tmpdir()
+  const store = new OffloadStore(home)
+  const record = { id: 'id1', repo: 'k1', box: 'b', box_name: 'main', name: 'r', dir: '/w/r', kind: 'claude', base: null, top: null, started_at_ms: 0, seen: 0 }
+  const run = async (statuses, opts) => {
+    store.save(record)
+    const log = []
+    let i = 0
+    let sent = false
+    class Fake extends Offloader {
+      async verb(args) {
+        if (args[0] === 'status') {
+          const status = statuses[Math.min(i++, statuses.length - 1)]
+          log.push(`status ${status}`)
+          return { sessions: status === null ? [] : [{ repo: 'k1', status, hook_at_ms: 1 }] }
+        }
+        if (args[0] === 'send') {
+          log.push(`send ${args.slice(3).join(' ')}`)
+          sent = true
+          return { delivery: 'accepted' }
+        }
+        if (args[0] === 'read') return { status: 'idle', entries: sent ? [{ seq: 1, kind: 'back', offload_id: 'id1', body: '# Hand-over: x' }] : [] }
+        return { ok: true }
+      }
+    }
+    const progress = []
+    const f = new Fake({ connection: { endpoint: 'e', token: 't' }, box: { id: 'b' }, store, rsh: 'x', env: {} })
+    f.progress = (m) => progress.push(m)
+    const out = await f.back('k1', { waitS: 0.3, pollMs: 5, ...opts }).catch((e) => e)
+    return { log, out, progress }
+  }
+  const busy = await run(['working', 'working', 'idle', 'working', 'idle', 'idle'])
+  assert.deepEqual(busy.log.filter((l) => l.startsWith('status')).slice(0, 6), ['status working', 'status working', 'status idle', 'status working', 'status idle', 'status idle'])
+  // one more status read after the wait records the hook time for the pasted-retry check
+  assert.equal(busy.log.indexOf('send --back'), 7, 'BACK goes out only after two idle polls in a row')
+  assert.equal(busy.out.handover, '# Hand-over: x')
+  assert.match(busy.progress[0], /waiting for it to go idle/)
+
+  const blocked = await run(['blocked', 'blocked'])
+  assert.equal(blocked.log.indexOf('send --back'), 3, 'a session blocked by an unconfirmed delivery takes BACK again')
+
+  const unknown = await run([null])
+  assert.equal(unknown.log.indexOf('send --back'), 2, 'a box that reports no session status is not waited on')
+
+  const never = await run(['working'])
+  assert.ok(!never.log.some((l) => l.startsWith('send')), 'nothing is sent when it never goes idle')
+  assert.match(never.out.message, /still working after .* nothing was sent.*back --interrupt/)
+
+  const stopped = await run(['stopped'])
+  assert.match(stopped.out.message, /stopped without handing the work back/)
+
+  const interrupt = await run(['working'], { interrupt: true })
+  assert.deepEqual(interrupt.log.filter((l) => l.startsWith('send')), ['send --back --interrupt'], '--interrupt skips the wait')
+})
+
+test('landing summaries say where HEAD went and what is left uncommitted', async () => {
+  const { landingSummary } = await import('../src/offload/git.js')
+  const head = 'ae472b8c0ffee00000000000000000000000000'
+  assert.equal(landingSummary({ kind: 'fastForward', head, uncommitted: [] }), "fast-forward: this branch now points at the box's commit ae472b8")
+  assert.equal(landingSummary({ kind: 'fastForward', head, uncommitted: ['b.txt'] }), "fast-forward: this branch now points at the box's commit ae472b8; uncommitted: b.txt")
+  assert.equal(landingSummary({ kind: 'fastForward', head: null, uncommitted: ['a.txt'] }), "fast-forward: the box made no commit; its changes are applied uncommitted (a.txt)")
+  assert.equal(
+    landingSummary({ kind: 'merged', files: ['calc.py'], head, uncommitted: ['__pycache__/calc.pyc'] }),
+    "merged: this branch now points at the box's commit ae472b8; the changes you made meanwhile are kept; uncommitted: __pycache__/calc.pyc",
+  )
+  assert.equal(landingSummary({ kind: 'merged', files: ['a.txt'], head: null, uncommitted: ['a.txt'] }), "merged: the box's changes are applied uncommitted (a.txt)")
 })

@@ -156,7 +156,7 @@ test('offload warns, then moves the task; back fast-forwards the box commits', {
   const back = await cli(['back', '--json'], { cwd: repo })
   assert.equal(back.code, 0, back.stderr + back.text)
   const b = JSON.parse(back.text)
-  assert.match(b.landing, /^fast-forward/)
+  assert.match(b.landing, /^fast-forward: this branch now points at the box's commit [0-9a-f]{7}$/)
   assert.equal(fs.readFileSync(path.join(repo, 'a.txt'), 'utf8'), 'one\nuncommitted\nfrom the box\n')
   assert.equal(git(repo, 'log', '-1', '--format=%s'), 'box work')
   assert.equal(git(repo, 'status', '--porcelain'), '')
@@ -182,7 +182,8 @@ test('back applies a clean merge uncommitted when the user worked meanwhile, els
   fs.writeFileSync(path.join(repo, 'b.txt'), 'bee\nlocal edit\n')
   playBoxAgent(r, { 'a.txt': 'one\nbox edit\n' })
   const back = JSON.parse((await cli(['back', '--json'], { cwd: repo })).text)
-  assert.match(back.landing, /^merged/)
+  assert.match(back.landing, /^merged: this branch now points at the box's commit [0-9a-f]{7}; the changes you made meanwhile are kept; uncommitted: b\.txt$/)
+  assert.equal(git(repo, 'log', '-1', '--format=%s'), 'box work', 'HEAD moved to the box commit')
   assert.equal(fs.readFileSync(path.join(repo, 'a.txt'), 'utf8'), 'one\nbox edit\n')
   assert.equal(fs.readFileSync(path.join(repo, 'b.txt'), 'utf8'), 'bee\nlocal edit\n')
 

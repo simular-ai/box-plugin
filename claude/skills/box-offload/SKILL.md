@@ -40,9 +40,11 @@ the `rsh -t ... tmux attach` line offload printed.
 
 ## BACK
 
-Run `box back` in the repo. It waits up to 10 minutes for the box agent's hand-over, then
-lands the box's work against the snapshot taken at the offload. Report how the code landed:
-fast-forward, merged (applied uncommitted), unchanged, or a branch with conflicts, where
+Run `box back` in the repo. It waits for the box agent to go idle, then up to 10 minutes in
+all for its hand-over, then lands the box's work against the snapshot taken at the offload.
+Report how the code landed, as its first line says: fast-forward (the branch now points at
+the box's commit), merged (the branch moved to the box's commit, or the box's changes applied
+uncommitted, with any uncommitted paths listed), unchanged, or a branch with conflicts, where
 your work tree is untouched. If it says nothing of this repo is in a box and names a
 `back.md`, the work has landed already: read that file as the hand-over. Then check the
 hand-over's claims against `git log` and `git diff`, run its verify commands, and continue
