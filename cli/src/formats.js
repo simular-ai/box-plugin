@@ -1,10 +1,8 @@
-// Format-preserving edits. We change only the keys we own and keep comments, ordering and
-// every other server the user has.
+// Parsing and the format-preserving edits add-mcp does not cover for us (Codex TOML, Hermes YAML,
+// .env files). We change only the keys we own and keep comments, ordering and every other server.
 import * as jsonc from 'jsonc-parser'
 import * as TOML from 'smol-toml'
 import YAML from 'yaml'
-
-const FORMAT = { formattingOptions: { insertSpaces: true, tabSize: 2, eol: '\n' } }
 
 /** Parse JSON or JSONC. Throws on a file we cannot parse: never overwrite what we can't read. */
 export function parseJsonc(text, file = 'config') {
@@ -19,17 +17,6 @@ export function parseJsonc(text, file = 'config') {
     throw new Error(`${file} does not hold a JSON object; fix it or move it aside, then run again`)
   }
   return value
-}
-
-/** Set (or with value undefined, delete) the value at `jsonPath`, keeping the rest of the text. */
-export function setJsoncPath(text, jsonPath, value, file) {
-  const base = text === null || text.trim() === '' ? '{}\n' : text
-  parseJsonc(base, file)
-  const eol = /\r\n/.test(base) ? '\r\n' : '\n'
-  const edits = jsonc.modify(base, jsonPath, value, { formattingOptions: { ...FORMAT.formattingOptions, eol } })
-  let out = jsonc.applyEdits(base, edits)
-  if (!out.endsWith('\n')) out += eol
-  return out
 }
 
 export function getPath(obj, jsonPath) {
@@ -52,34 +39,6 @@ function sortKeys(v) {
     return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])]))
   }
   return v
-}
-
-/**
- * Upsert `servers[name] = entry` under `containerPath` in a JSON/JSONC document and delete legacy
- * names. Returns the new text, or the old text when nothing changes.
- */
-export function upsertJsonServer(text, containerPath, name, entry, { legacy = [], file } = {}) {
-  const doc = parseJsonc(text, file)
-  let out = text
-  const current = getPath(doc, [...containerPath, name])
-  if (!sameValue(current, entry)) out = setJsoncPath(out, [...containerPath, name], entry, file)
-  for (const old of legacy) {
-    if (getPath(parseJsonc(out, file), [...containerPath, old]) !== undefined) {
-      out = setJsoncPath(out, [...containerPath, old], undefined, file)
-    }
-  }
-  return out
-}
-
-export function removeJsonServer(text, containerPath, names, { file } = {}) {
-  if (text === null) return null
-  let out = text
-  for (const name of names) {
-    if (getPath(parseJsonc(out, file), [...containerPath, name]) !== undefined) {
-      out = setJsoncPath(out, [...containerPath, name], undefined, file)
-    }
-  }
-  return out
 }
 
 // ---- dotenv files (KEY=value lines) ----

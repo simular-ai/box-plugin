@@ -1,20 +1,15 @@
-// VS Code (GitHub Copilot agent mode): user-profile mcp.json, `servers`, `type: "http"`.
-// VS Code runs the OAuth sign-in itself. Docs:
+// VS Code (GitHub Copilot agent mode): user-profile mcp.json, `servers`, `type: "http"`, written by
+// add-mcp. VS Code runs the OAuth sign-in itself. Docs:
 // https://code.visualstudio.com/docs/agents/reference/mcp-configuration
 // Detection uses the user-data folder, not `code` on PATH: Cursor also installs a `code` shim.
 import path from 'node:path'
-import { jsonClient } from './json-client.js'
+import { addMcpClient } from './add-mcp-client.js'
 
-const userDir = (ctx) => path.join(ctx.appData, 'Code', 'User')
-
-export default jsonClient({
+export default addMcpClient({
   id: 'vscode',
+  agent: 'vscode',
   name: 'VS Code',
-  auth: 'oauth',
   aliases: ['code', 'copilot'],
-  file: (ctx) => path.join(userDir(ctx), 'mcp.json'),
-  container: ['servers'],
-  entry: (ctx) => ({ type: 'http', url: ctx.url }),
-  dirs: (ctx) => [userDir(ctx)],
+  dirs: (ctx) => [path.join(ctx.appData, 'Code', 'User')],
   next: (ctx) => [`In VS Code, open the Command Palette -> MCP: List Servers -> ${ctx.name} -> Start, then allow the sign-in and click Approve.`],
 })

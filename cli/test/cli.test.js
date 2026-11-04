@@ -79,7 +79,9 @@ test('real CLI: connect --client cursor,codex --yes in a temp HOME, then remove'
   const sb = sandbox()
   const res = run(['connect', '--client', 'cursor,codex', '--yes'], sb)
   assert.equal(res.status, 0, res.stderr + res.stdout)
-  assert.match(res.stdout, /codex mcp login box/)
+  // No `codex` on PATH (the Codex app alone): the hint points at the app's Settings.
+  assert.match(res.stdout, /Settings -> MCP servers and click Authenticate next to box/)
+  assert.ok(!res.stdout.includes('codex mcp login'), 'does not assume the codex CLI')
   assert.match(res.stdout, /start a new chat \(or restart the app\)/)
   for (const e of EXAMPLE_PROMPTS) assert.ok(res.stdout.includes(e), `shows the example prompt: ${e}`)
   assert.deepEqual(JSON.parse(sb.read('.cursor/mcp.json')), { mcpServers: { box: { url: DEFAULT_MCP_URL } } })
@@ -126,4 +128,20 @@ test('real CLI: example prompts only after something was set up', () => {
   assert.ok(!broken.stdout.includes(EXAMPLE_PROMPTS[0]), 'no example prompts when every app failed')
   const doctor = run(['doctor', '--client', 'cursor'], sb)
   assert.ok(!doctor.stdout.includes(EXAMPLE_PROMPTS[0]), 'doctor shows no example prompts')
+})
+
+test('real CLI: a config it may not write gets a clear message (and the Codex app steps)', { skip: (process.platform === 'win32' || process.getuid?.() === 0) && 'needs POSIX permissions and a non-root user' }, () => {
+  const sb = sandbox()
+  sb.write('.codex/config.toml', 'model = "gpt-5"\n')
+  fs.chmodSync(path.join(sb.home, '.codex'), 0o500)
+  try {
+    const res = run(['connect', '--client', 'codex', '--yes'], sb)
+    assert.notEqual(res.status, 0)
+    const out = res.stdout + res.stderr
+    assert.match(out, /permission denied/)
+    assert.match(out, /Settings -> MCP servers -> Add server, name it box, choose Streamable HTTP, paste https:\/\/relay\.simular\.cloud\/mcp/)
+    assert.match(out, /click Authenticate next to box/)
+  } finally {
+    fs.chmodSync(path.join(sb.home, '.codex'), 0o700)
+  }
 })

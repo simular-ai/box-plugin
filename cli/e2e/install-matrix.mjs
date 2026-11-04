@@ -97,6 +97,15 @@ const ADAPTERS = {
     present: (out) => /\bbox\s+https:\/\/relay\.simular/.test(out),
     otherKept: (out) => /\bother\b/.test(out),
   },
+  'gemini-cli': {
+    bin: 'gemini',
+    seed: () => writeJson(client.configLocation(ctx), { mcpServers: { other: { httpUrl: 'https://example.com/mcp' } } }),
+    // The isolated HOME is not a trusted folder, so Gemini lists the servers as Disabled and
+    // never connects; the listing still proves it reads our entry as an http server.
+    list: () => sh('gemini', ['mcp', 'list']),
+    present: (out) => /\bbox: https:\/\/relay\.simular\.cloud\/mcp \(http\)/.test(out),
+    otherKept: (out) => /\bother: https:\/\/example\.com\/mcp/.test(out),
+  },
   cursor: {
     bin: 'cursor-agent',
     seed: () => writeJson(client.configLocation(ctx), { mcpServers: { other: { url: 'https://example.com/mcp' } } }),

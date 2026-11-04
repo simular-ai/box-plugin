@@ -7,6 +7,7 @@ import YAML from 'yaml'
 import * as jsonc from 'jsonc-parser'
 import { findClient } from '../src/clients/index.js'
 import { DEFAULT_MCP_URL } from '../src/constants.js'
+import { createContext } from '../src/context.js'
 import { FAKE_CLAUDE, FAKE_OPENCLAW, fixture, sandbox } from './helpers.js'
 
 const KEY = 'cb_test_fake_key_123'
@@ -104,14 +105,41 @@ test('opencode: prefers opencode.jsonc, writes a remote entry, keeps comments', 
   assert.equal(sb.read('.config/opencode/opencode.json'), null)
 })
 
+// add-mcp picks the platform's own folder (Application Support, %APPDATA%, XDG), so ask it where.
+const rel = (sb, id) => path.relative(sb.home, client(id).configLocation(sb.ctx))
+
 test('vscode: writes servers.box with type http next to other servers', () => {
   const sb = sandbox()
-  sb.write('.config/Code/User/mcp.json', fixture('vscode.before.json'))
+  const file = rel(sb, 'vscode')
+  sb.write(file, fixture('vscode.before.json'))
   client('vscode').connect(sb.ctx)
-  const doc = JSON.parse(sb.read('.config/Code/User/mcp.json'))
+  const doc = JSON.parse(sb.read(file))
   assert.deepEqual(doc.servers.box, { type: 'http', url: DEFAULT_MCP_URL })
   assert.ok(doc.servers.playwright)
   assert.deepEqual(doc.inputs, [])
+})
+
+test('opencode: stops when XDG_CONFIG_HOME points elsewhere instead of writing a file OpenCode never reads', () => {
+  const sb = sandbox()
+  const ctx = createContext({ env: { ...sb.env, XDG_CONFIG_HOME: path.join(sb.home, 'xdg') }, platform: 'linux' })
+  assert.throws(() => client('opencode').connect(ctx), /Add box by hand/)
+  assert.deepEqual(fs.readdirSync(sb.home).sort(), ['.bin'])
+})
+
+test('gemini-cli: writes mcpServers.box as an http server and removes it', () => {
+  const sb = sandbox()
+  sb.write('.gemini/settings.json', '{\n  // mine\n  "theme": "Default",\n  "mcpServers": { "other": { "httpUrl": "https://example.com/mcp" } }\n}\n')
+  const res = client('gemini').connect(sb.ctx)
+  assert.match(res.next[0], /\/mcp auth box/)
+  const text = sb.read('.gemini/settings.json')
+  assert.match(text, /\/\/ mine/)
+  const doc = jsonc.parse(text)
+  assert.deepEqual(doc.mcpServers.box, { type: 'http', url: DEFAULT_MCP_URL })
+  assert.equal(doc.theme, 'Default')
+  assert.deepEqual(client('gemini').connect(sb.ctx).actions, [])
+  assert.equal(client('gemini-cli').status(sb.ctx).entries[0].url, DEFAULT_MCP_URL)
+  client('gemini-cli').remove(sb.ctx)
+  assert.deepEqual(Object.keys(jsonc.parse(sb.read('.gemini/settings.json')).mcpServers), ['other'])
 })
 
 test('hermes: OAuth entry keeps comments; key mode puts the key only in .env (0600)', () => {
@@ -208,7 +236,7 @@ test('claude-desktop: writes nothing, prints connector steps', () => {
 test('dry run writes nothing for file-based clients', () => {
   const sb = sandbox()
   const ctx = { ...sb.ctx, dryRun: true }
-  for (const id of ['cursor', 'codex', 'opencode', 'vscode', 'hermes']) {
+  for (const id of ['cursor', 'codex', 'opencode', 'vscode', 'gemini-cli', 'hermes']) {
     const res = client(id).connect(ctx, { mode: 'oauth' })
     assert.ok(res.actions[0].startsWith('would'), id)
   }
@@ -221,12 +249,14 @@ const BOX_COM = 'https://mcp.box.com'
 
 test('json clients: a foreign box blocks connect, survives remove, and --name installs next to it', () => {
   const cases = [
-    ['cursor', '.cursor/mcp.json', ['mcpServers']],
-    ['opencode', '.config/opencode/opencode.json', ['mcp']],
-    ['vscode', '.config/Code/User/mcp.json', ['servers']],
+    ['cursor', ['mcpServers']],
+    ['opencode', ['mcp']],
+    ['vscode', ['servers']],
+    ['gemini-cli', ['mcpServers']],
   ]
-  for (const [id, rel, container] of cases) {
+  for (const [id, container] of cases) {
     const sb = sandbox()
+    const rel = path.relative(sb.home, client(id).configLocation(sb.ctx))
     const foreign = { url: BOX_COM, headers: { Authorization: 'Bearer box-com-token' } }
     const original = JSON.stringify(container.reduceRight((acc, k) => ({ [k]: acc }), { box: foreign }), null, 2)
     sb.write(rel, original)

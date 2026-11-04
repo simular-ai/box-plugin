@@ -192,6 +192,11 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
       failed++
       spin.stop(`${client.name}: failed`, 1)
       p.log.error(`  ${err.message}`)
+      if (isPermissionError(err)) {
+        const where = err.path ? ` ${err.path}` : ' its config'
+        p.log.warn(`  box could not write${where}: permission denied. The file may belong to another user (for example after a run with sudo) or be locked by the app; check its owner, or quit the app and run again.`)
+        for (const n of client.permissionHelp?.(ctx) || []) next.push(`${client.name}: ${n}`)
+      }
     }
   }
   if (next.length) p.note(next.join('\n'), 'Next')
@@ -200,6 +205,11 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
   }
   p.outro(`Watch your box live: ${WATCH_URL}  |  Keys and connected apps: ${KEYS_URL}  |  Check: npx @simular-ai/box doctor`)
   return failed ? 1 : 0
+}
+
+/** EACCES/EPERM from Node, or the same reported as text (add-mcp, Windows "Access is denied"). */
+export function isPermissionError(err) {
+  return ['EACCES', 'EPERM'].includes(err?.code) || /\bEACCES\b|\bEPERM\b|permission denied|access is denied|operation not permitted/i.test(err?.message || '')
 }
 
 async function remove(ctx, flags, { interactive }) {

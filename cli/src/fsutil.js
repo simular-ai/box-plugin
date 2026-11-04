@@ -37,6 +37,19 @@ export function backup(file, now = new Date()) {
 }
 
 /**
+ * Keep `text` (a file's content before someone else changed it) as `file.box-backup-<timestamp>`,
+ * with the file's mode. Used when the change itself is made by add-mcp.
+ */
+export function saveBackup(file, text, now = new Date()) {
+  const real = exists(file) ? fs.realpathSync(file) : file
+  const target = `${real}.box-backup-${now.toISOString().replace(/[:.]/g, '-')}`
+  const mode = exists(real) ? fs.statSync(real).mode & 0o777 : 0o600
+  fs.writeFileSync(target, text, { mode })
+  fs.chmodSync(target, mode)
+  return target
+}
+
+/**
  * Write atomically (temp file + rename) so a crash never leaves a half-written config.
  * Keeps the existing file's mode; `mode` applies to new files (0600 for files that hold a key).
  */
