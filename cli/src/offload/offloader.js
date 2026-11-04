@@ -250,7 +250,7 @@ export class Offloader {
       for (const entry of res.entries) {
         since = Math.max(since, entry.seq)
         if (entry.offload_id === record.id || !entry.offload_id) onEntry(entry)
-        if (entry.kind === 'blocked') throw new OffloadError('failed', `the box agent stopped: ${entry.body}`)
+        if (entry.kind === 'blocked') throw new OffloadError('failed', `back is blocked in the box: ${entry.body}`)
       }
       back = [...res.entries].reverse().find((e) => e.kind === 'back' && e.offload_id === record.id)
       if (!back && res.status === 'stopped') throw new OffloadError('failed', 'the box CLI session stopped without handing the work back')
