@@ -5,6 +5,9 @@ name: Release dsh plugin
 # (https://github.com/simular-ai/box-plugin/releases/download/dsh-vX.Y.Z/dsh-box.tgz), never
 # releases/latest: pnpm caches what a tarball URL resolved to, so new contents behind the same
 # URL fail to install. `--latest` below only marks the release on GitHub.
+#
+# After the release, the `portal` job opens (or updates) a box-portal PR that links the new
+# version (bump-portal.yml). Merging and deploying that PR stays a person's call.
 on:
   push:
     tags: ['dsh-v*']
@@ -14,13 +17,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - name: Tag matches dsh/package.json
-        run: test "dsh-v$(node -p "require('./dsh/package.json').version")" = "$GITHUB_REF_NAME"
+        id: version
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./dsh/package.json').version")
+          test "dsh-v$version" = "$GITHUB_REF_NAME"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Pack
         run: |
           file=$(npm pack ./dsh --silent)
@@ -28,4 +38,21 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dsh-box.tgz --title "$GITHUB_REF_NAME" --notes "DeepSeek Harness plugin for box. See dsh/README.md." --latest
+        # A re-run keeps the existing release, so the portal job below still runs.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME exists; keeping it."
+          else
+            gh release create "$GITHUB_REF_NAME" dsh-box.tgz --title "$GITHUB_REF_NAME" --notes "DeepSeek Harness plugin for box. See dsh/README.md." --latest
+          fi
+
+  portal:
+    needs: release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/bump-portal.yml
+    with:
+      plugin: dsh
+      version: ${{ needs.release.outputs.version }}
+    secrets:
+      SIMULAR_CI_APP_PRIVATE_KEY: ${{ secrets.SIMULAR_CI_APP_PRIVATE_KEY }}

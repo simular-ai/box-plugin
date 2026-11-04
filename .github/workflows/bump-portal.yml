@@ -1,0 +1,229 @@
+name: Bump box-portal
+
+# After a plugin release, opens (or updates) a PR in simular-ai/box-portal that sets the plugin's
+# version in src/lib/plugin-versions.json, the one place the portal and box.simular.ai/install read
+# the versioned release link from. The PR is the output: nothing here merges or deploys it.
+#
+# Callers: release-dsh.yml, after the release exists. By hand: Actions -> Bump box-portal -> Run
+# workflow; `dry_run` (on by default) prints the diff and stops before pushing anything. A PR that
+# changes this workflow or its script runs it in dry-run mode against dsh/package.json's version.
+#
+# Idempotent: one branch per plugin (box-plugin/<plugin>), force-pushed by
+# peter-evans/create-pull-request, so a re-run or the next release updates the same open PR. A
+# version never moves backwards, on main or on that open PR.
+#
+# Tokens: the org's simular-ci-deps app (org variable SIMULAR_CI_APP_ID, org secret
+# SIMULAR_CI_APP_PRIVATE_KEY), each token scoped to box-portal alone. Dry runs ask for
+# contents: read; real runs ask for contents and pull-requests: write, which the app must be
+# granted. Its key is visible to every org repo, so that write reaches any org workflow: an
+# accepted risk (Chenchen, 2026-11-04).
+
+on:
+  workflow_call:
+    inputs:
+      plugin:
+        type: string
+        required: true
+      version:
+        description: X.Y.Z; the release tag is <plugin>-vX.Y.Z
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: false
+      portal_ref:
+        description: box-portal branch to read the manifest from (dry runs only)
+        type: string
+        default: main
+    secrets:
+      SIMULAR_CI_APP_PRIVATE_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      plugin:
+        type: choice
+        options: [dsh]
+        default: dsh
+      version:
+        description: X.Y.Z; the release tag is <plugin>-vX.Y.Z
+        type: string
+        required: true
+      dry_run:
+        description: Print the diff, push nothing
+        type: boolean
+        default: true
+      portal_ref:
+        description: box-portal branch to read the manifest from (dry runs only)
+        type: string
+        default: main
+  pull_request:
+    paths:
+      - '.github/workflows/bump-portal.yml'
+      - '.github/scripts/set-portal-version.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bump-portal-${{ inputs.plugin || 'dsh' }}-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  bump:
+    name: Bump box-portal
+    # Needs the org secret: never on PRs from forks.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Resolve the release
+        id: release
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_PLUGIN: ${{ inputs.plugin }}
+          IN_VERSION: ${{ inputs.version }}
+          IN_DRY_RUN: ${{ inputs.dry_run }}
+          IN_PORTAL_REF: ${{ inputs.portal_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then
+            plugin=dsh
+            version=$(node -p "require('./dsh/package.json').version")
+            dry_run=true
+          else
+            plugin=$IN_PLUGIN
+            version=$IN_VERSION
+            dry_run=$IN_DRY_RUN
+          fi
+          case "$plugin" in
+            dsh) asset=dsh-box.tgz ;;
+            *) echo "::error::Unknown plugin '$plugin'." >&2; exit 1 ;;
+          esac
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '$version' is not X.Y.Z." >&2; exit 1
+          fi
+          portal_ref=main
+          if [ "$dry_run" = true ] && [ -n "$IN_PORTAL_REF" ]; then portal_ref=$IN_PORTAL_REF; fi
+          if ! [[ "$portal_ref" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "::error::portal_ref '$portal_ref' is not a branch name." >&2; exit 1
+          fi
+          tag="$plugin-v$version"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$asset"
+          # The link must work before the portal points people at it.
+          if ! curl -fsSIL -o /dev/null --retry 3 "$url"; then
+            echo "::error::$url does not download. Release $tag first." >&2; exit 1
+          fi
+          {
+            echo "plugin=$plugin"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "url=$url"
+            echo "dry_run=$dry_run"
+            echo "portal_ref=$portal_ref"
+          } >> "$GITHUB_OUTPUT"
+          echo "$plugin $version ($url), dry_run=$dry_run, box-portal@$portal_ref"
+
+      - name: Mint a read-only box-portal token (dry run)
+        id: read-token
+        if: steps.release.outputs.dry_run == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SIMULAR_CI_APP_ID }}
+          private-key: ${{ secrets.SIMULAR_CI_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: box-portal
+          permission-contents: read
+
+      - name: Mint a box-portal write token
+        id: write-token
+        if: steps.release.outputs.dry_run != 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SIMULAR_CI_APP_ID }}
+          private-key: ${{ secrets.SIMULAR_CI_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: box-portal
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ github.repository_owner }}/box-portal
+          ref: ${{ steps.release.outputs.portal_ref }}
+          token: ${{ steps.read-token.outputs.token || steps.write-token.outputs.token }}
+          path: portal
+          persist-credentials: false
+
+      - name: Set the version
+        id: set
+        env:
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ steps.read-token.outputs.token || steps.write-token.outputs.token }}
+          PLUGIN: ${{ steps.release.outputs.plugin }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          manifest=src/lib/plugin-versions.json
+          if [ "$EVENT" = pull_request ] && [ ! -f "portal/$manifest" ]; then
+            # Only until box-portal's manifest lands: a PR check can't fail on the other repo's merge order.
+            echo "::warning::box-portal@main has no $manifest yet; nothing to dry-run against."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The open bump PR's copy, so an older re-run can't downgrade it.
+          pending="$RUNNER_TEMP/pending-plugin-versions.json"
+          if gh api "repos/$GITHUB_REPOSITORY_OWNER/box-portal/contents/$manifest?ref=box-plugin/$PLUGIN" \
+              -H 'Accept: application/vnd.github.raw' > "$pending" 2>/dev/null; then
+            echo "Open bump branch box-plugin/$PLUGIN found."
+          else
+            rm -f "$pending"
+          fi
+          node .github/scripts/set-portal-version.mjs "portal/$manifest" "$PLUGIN" "$VERSION" "$pending"
+          git -C portal diff
+
+      - name: Open or update the box-portal PR
+        if: steps.release.outputs.dry_run != 'true' && steps.set.outputs.changed == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.read-token.outputs.token || steps.write-token.outputs.token }}
+          path: portal
+          base: main
+          branch: box-plugin/${{ steps.release.outputs.plugin }}
+          sign-commits: true
+          add-paths: src/lib/plugin-versions.json
+          commit-message: |
+            Link the ${{ steps.release.outputs.plugin }} plugin ${{ steps.release.outputs.tag }}
+
+            Set by box-plugin's release workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          title: Link the ${{ steps.release.outputs.plugin }} plugin ${{ steps.release.outputs.tag }}
+          body: |
+            box-plugin released [`${{ steps.release.outputs.tag }}`](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag }}). This sets `${{ steps.release.outputs.plugin }}` in `src/lib/plugin-versions.json` from `${{ steps.set.outputs.current }}` to `${{ steps.release.outputs.version }}`, so the portal and `/install` link ${{ steps.release.outputs.url }}.
+
+            Opened by box-plugin's [release workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}); a later release updates this PR. It is not merged or deployed automatically: review, merge, then deploy as usual. Part of #109.
+
+      - name: Summary
+        env:
+          DRY_RUN: ${{ steps.release.outputs.dry_run }}
+          CHANGED: ${{ steps.set.outputs.changed }}
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+          PR_OP: ${{ steps.pr.outputs.pull-request-operation }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            echo "Dry run for $TAG: changed=$CHANGED; nothing pushed." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [ "$CHANGED" != true ]; then
+            echo "box-portal needs no change for $TAG." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "box-portal PR ($PR_OP): $PR_URL" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
