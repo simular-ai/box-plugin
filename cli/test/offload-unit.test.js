@@ -87,7 +87,7 @@ test('token store: 0600 file in a 0700 dir; BOX_TOKEN wins and is never written'
 })
 
 test('endpoint: BOX_ENDPOINT, else the origin of BOX_MCP_URL, else prod; https only off localhost', () => {
-  assert.equal(endpointUrl({}), 'https://relay.simular.cloud')
+  assert.equal(endpointUrl({}), 'https://mcp.box.simular.ai')
   assert.equal(endpointUrl({ BOX_MCP_URL: 'https://staging.relay.simular.cloud/mcp' }), 'https://staging.relay.simular.cloud')
   assert.equal(endpointUrl({ BOX_ENDPOINT: 'http://127.0.0.1:9' }), 'http://127.0.0.1:9')
   assert.throws(() => endpointUrl({ BOX_ENDPOINT: 'http://relay.example' }), /https/)
