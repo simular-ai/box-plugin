@@ -126,6 +126,30 @@ test('opencode: stops when XDG_CONFIG_HOME points elsewhere instead of writing a
   assert.deepEqual(fs.readdirSync(sb.home).sort(), ['.bin'])
 })
 
+test('opencode: an empty mcp.servers map (newer layout) gets box there', () => {
+  const sb = sandbox()
+  sb.write('.config/opencode/opencode.json', '{ "mcp": { "servers": {} } }\n')
+  client('opencode').connect(sb.ctx)
+  const doc = jsonc.parse(sb.read('.config/opencode/opencode.json'))
+  assert.equal(doc.mcp.servers.box.url, DEFAULT_MCP_URL)
+  assert.equal(doc.mcp.box, undefined)
+  assert.deepEqual(client('opencode').connect(sb.ctx).actions, [])
+})
+
+test('add-mcp failing part-way restores the file and keeps no stray backup', { skip: (WIN || process.getuid?.() === 0) && 'needs POSIX permissions and a non-root user' }, () => {
+  const sb = sandbox()
+  const original = '{ "mcpServers": { "other": { "url": "https://example.com/mcp" } } }\n'
+  const file = sb.write('.cursor/mcp.json', original)
+  fs.chmodSync(file, 0o400)
+  try {
+    assert.throws(() => client('cursor').connect(sb.ctx), (e) => e.code === 'EACCES')
+  } finally {
+    fs.chmodSync(file, 0o600)
+  }
+  assert.equal(sb.read('.cursor/mcp.json'), original)
+  assert.deepEqual(backups(path.dirname(file)), [])
+})
+
 test('gemini-cli: writes mcpServers.box as an http server and removes it', () => {
   const sb = sandbox()
   sb.write('.gemini/settings.json', '{\n  // mine\n  "theme": "Default",\n  "mcpServers": { "other": { "httpUrl": "https://example.com/mcp" } }\n}\n')

@@ -4,10 +4,21 @@
 // Request on stdin: {agent, name, url, ops: [{op: 'inspect' | 'upsert' | 'remove', name?}]}.
 // Reply on stdout: {results: [...]} or {error}. Never pass a secret: none is needed here.
 import fs from 'node:fs'
+import * as jsonc from 'jsonc-parser'
 import { agents, listInstalledServers, removeServer, upsertServer } from 'add-mcp'
 
 function configPath(agent) {
   return agent.resolveConfigPath ? agent.resolveConfigPath(agent, { local: false, cwd: process.cwd() }) : agent.configPath
+}
+
+// OpenCode keeps servers under `mcp` (V1) or `mcp.servers` (V2). add-mcp writes a new server into
+// `mcp.servers` when the file has that map (even empty) and no V1 servers; mirror that here.
+function openCodeKey(file, servers) {
+  if (servers.some((s) => s.configKey === 'mcp')) return 'mcp'
+  if (servers.length) return servers[0].configKey
+  if (!fs.existsSync(file)) return 'mcp'
+  const map = jsonc.parse(fs.readFileSync(file, 'utf8'), [], { allowTrailingComma: true })?.mcp?.servers
+  return map && typeof map === 'object' && !Array.isArray(map) ? 'mcp.servers' : 'mcp'
 }
 
 async function inspect(agentId, name, url) {
@@ -21,8 +32,7 @@ async function inspect(agentId, name, url) {
     servers = read.servers.map((s) => ({ name: s.serverName, configKey: s.configKey, config: s.config }))
   }
   const existing = servers.find((s) => s.name === name)
-  // OpenCode keeps servers under `mcp` (V1) or `mcp.servers` (V2); add-mcp writes where the file already does.
-  const configKey = existing?.configKey ?? servers.find((s) => s.configKey !== agent.configKey)?.configKey ?? agent.configKey
+  const configKey = existing?.configKey ?? (agentId === 'opencode' ? openCodeKey(file, servers) : agent.configKey)
   const entry = agent.transformConfig(name, { type: 'http', url }, { local: false, configKey })
   return { path: file, format: agent.format, configKey, entry: JSON.parse(JSON.stringify(entry)), servers }
 }

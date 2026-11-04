@@ -9,6 +9,10 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { KEY_ENV } from './constants.js'
+
+// add-mcp needs no secret: keep personal keys out of the worker's environment.
+const SECRET_ENV = [KEY_ENV, 'MCP_BOX_API_KEY']
 
 const WORKER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'add-mcp-worker.js')
 
@@ -24,7 +28,7 @@ export function writeError(message, file) {
 
 function call(ctx, agent, name, ops) {
   const res = spawnSync(process.execPath, [WORKER], {
-    env: ctx.env,
+    env: Object.fromEntries(Object.entries(ctx.env).filter(([k]) => !SECRET_ENV.includes(k))),
     input: JSON.stringify({ agent, name, url: ctx.url, ops }),
     encoding: 'utf8',
     timeout: 30000,

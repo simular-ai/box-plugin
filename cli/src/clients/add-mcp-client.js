@@ -33,19 +33,39 @@ export function addMcpClient(spec) {
   }
   const ourLegacy = (ctx, map) => LEGACY_SERVER_NAMES.filter((n) => map[n] && ctx.ours(entryUrl(map[n])))
 
-  /** Read the file back after add-mcp wrote it; restore the old text if it is not what we asked for. */
-  function verify(ctx, info, before, { expect, gone }) {
+  /**
+   * Let add-mcp change the file, with our safety around it: the old text is backed up first and
+   * put back if add-mcp fails part-way (it writes in place, not atomically) or the result does
+   * not read back as asked. Returns the backups kept.
+   */
+  function change(ctx, info, before, ops, { expect, gone }) {
+    const backup = before === null ? null : saveBackup(info.path, before)
+    const restore = () => {
+      if (before === null) fs.rmSync(info.path, { force: true })
+      else writeAtomic(info.path, before)
+    }
+    try {
+      writer.apply(ctx, spec.agent, ops)
+    } catch (err) {
+      restore()
+      if (backup) fs.rmSync(backup, { force: true })
+      throw err
+    }
     const after = readText(info.path)
     try {
       const servers = getPath(parseJsonc(after, info.path), info.configKey.split('.')) || {}
       if (expect && !sameValue(servers[ctx.name], expect)) throw new Error('box entry not as written')
       for (const n of gone) if (servers[n] !== undefined) throw new Error(`${n} still present`)
     } catch (err) {
-      if (before === null) fs.rmSync(info.path, { force: true })
-      else writeAtomic(info.path, before)
+      restore()
+      if (backup) fs.rmSync(backup, { force: true })
       throw new Error(`add-mcp's change to ${info.path} did not read back as expected (${err.message}); the file was restored`)
     }
-    return before !== null && after !== before ? [saveBackup(info.path, before)] : []
+    if (backup && after === before) {
+      fs.rmSync(backup, { force: true })
+      return []
+    }
+    return backup ? [backup] : []
   }
 
   return {
@@ -86,8 +106,7 @@ export function addMcpClient(spec) {
       const next = spec.next(ctx)
       if (!upsert && !legacy.length) return { actions: [], backups: [], next }
       if (ctx.dryRun) return { actions: [`would write ${ctx.name} to ${info.path}`], backups: [], next }
-      writer.apply(ctx, spec.agent, { upsert, drop: legacy })
-      const backups = verify(ctx, info, text, { expect: info.entry, gone: legacy })
+      const backups = change(ctx, info, text, { upsert, drop: legacy }, { expect: info.entry, gone: legacy })
       return { actions: [`wrote ${ctx.name} to ${info.path}`], backups, next }
     },
 
@@ -97,8 +116,7 @@ export function addMcpClient(spec) {
       const warnings = map[ctx.name] && !names.includes(ctx.name) ? [`left "${ctx.name}" in ${info.path}: it points at ${entryUrl(map[ctx.name])}, not box by Simular`] : []
       if (!names.length) return { actions: [], backups: [], warnings, next: [] }
       if (ctx.dryRun) return { actions: [`would remove ${names.join(', ')} from ${info.path}`], backups: [], warnings, next: [] }
-      writer.apply(ctx, spec.agent, { upsert: false, drop: names })
-      const backups = verify(ctx, info, text, { gone: names })
+      const backups = change(ctx, info, text, { upsert: false, drop: names }, { gone: names })
       return { actions: [`removed ${names.join(', ')} from ${info.path}`], backups, warnings, next: [] }
     },
   }
