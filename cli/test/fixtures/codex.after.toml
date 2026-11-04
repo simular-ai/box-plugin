@@ -13,5 +13,5 @@ approval_mode = "approve"
 model = "gpt-5-mini"
 
 [mcp_servers.box]
-url = "https://relay.simular.cloud/mcp"
+url = "https://mcp.box.simular.ai/mcp"
 startup_timeout_sec = 30

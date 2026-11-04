@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "box",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Give your agent a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, around the clock, while your own machine stays free.",
   "author": {
     "name": "Simular",

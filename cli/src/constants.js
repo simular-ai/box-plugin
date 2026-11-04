@@ -1,6 +1,13 @@
-// The one place the box MCP endpoint lives. When the endpoint moves (planned: mcp.box.simular.ai),
-// change DEFAULT_MCP_URL and release a new CLI version. BOX_MCP_URL overrides it (e.g. staging).
-export const DEFAULT_MCP_URL = 'https://relay.simular.cloud/mcp'
+// The one place the box MCP endpoint lives. When the endpoint moves, change DEFAULT_MCP_URL, add
+// the old host to OLD_HOSTS and release a new CLI version. BOX_MCP_URL overrides it (e.g. staging).
+export const DEFAULT_MCP_URL = 'https://mcp.box.simular.ai/mcp'
+
+/**
+ * Hosts box was served from before. Entries there are still ours (connect rewrites them, remove
+ * removes them), but they no longer work: the old host's sign-in metadata names the new URL, and
+ * MCP clients refuse a resource that doesn't match the URL they were given.
+ */
+export const OLD_HOSTS = ['relay.simular.cloud']
 
 /** Servers named here are removed on connect: older box setups added them next to `box`. */
 export const LEGACY_SERVER_NAMES = ['box-control']
@@ -8,7 +15,7 @@ export const LEGACY_SERVER_NAMES = ['box-control']
 export const SERVER_NAME = 'box'
 
 /** Hosts that serve box by Simular. An existing server named `box` elsewhere is not ours. */
-export const OUR_HOSTS = ['relay.simular.cloud', 'staging.relay.simular.cloud', 'mcp.box.simular.ai']
+export const OUR_HOSTS = ['mcp.box.simular.ai', 'staging.relay.simular.cloud', ...OLD_HOSTS]
 
 /** Whether `url` points at box by Simular (a known host, or the host of the current endpoint). */
 export function isOurUrl(url, currentUrl) {
@@ -22,6 +29,16 @@ export function isOurUrl(url, currentUrl) {
   if (OUR_HOSTS.includes(host)) return true
   try {
     return host === new URL(currentUrl).host
+  } catch {
+    return false
+  }
+}
+
+/** Whether `url` is box's old address (and not what this run connects to). */
+export function isOldUrl(url, currentUrl) {
+  try {
+    const host = new URL(url).host
+    return OLD_HOSTS.includes(host) && host !== new URL(currentUrl).host
   } catch {
     return false
   }

@@ -16,7 +16,7 @@
       config:
         serverName: box
         transport: streamable-http
-        url: !!js process.env.BOX_MCP_URL || 'https://relay.simular.cloud/mcp'
+        url: !!js process.env.BOX_MCP_URL || 'https://mcp.box.simular.ai/mcp'
         headers:
           Authorization: !!js ctx.boxAuth.authorization
         # Waking a box or taking a screenshot can outlast the 60 s default.
