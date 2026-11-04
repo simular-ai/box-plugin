@@ -71,7 +71,7 @@ test('codex: keeps CRLF line endings', () => {
   const sb = sandbox()
   sb.write('.codex/config.toml', 'model = "gpt-5"\r\n\r\n[mcp_servers.box]\r\nurl = "https://relay.simular.cloud/old"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n')
   client('codex').connect(sb.ctx)
-  assert.equal(sb.read('.codex/config.toml'), 'model = "gpt-5"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n\r\n[mcp_servers.box]\r\nurl = "https://relay.simular.cloud/mcp"\r\n')
+  assert.equal(sb.read('.codex/config.toml'), 'model = "gpt-5"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n\r\n[mcp_servers.box]\r\nurl = "https://mcp.box.simular.ai/mcp"\r\n')
   client('codex').remove(sb.ctx)
   assert.equal(sb.read('.codex/config.toml'), 'model = "gpt-5"\r\n\r\n[profiles.x]\r\nmodel = "m"\r\n')
 })
@@ -112,6 +112,34 @@ test('vscode: writes servers.box with type http next to other servers', () => {
   assert.deepEqual(doc.servers.box, { type: 'http', url: DEFAULT_MCP_URL })
   assert.ok(doc.servers.playwright)
   assert.deepEqual(doc.inputs, [])
+})
+
+test('gemini-cli: merges mcpServers.box as an http server, keeps comments and settings, idempotent, removes', () => {
+  const sb = sandbox()
+  const file = sb.write('.gemini/settings.json', '{\n  // mine\n  "theme": "Default",\n  "mcpServers": { "other": { "httpUrl": "https://example.com/mcp" } }\n}\n')
+  const res = client('gemini').connect(sb.ctx)
+  assert.match(res.next[0], /\/mcp auth box/)
+  assert.equal(res.backups.length, 1)
+  const text = sb.read('.gemini/settings.json')
+  assert.match(text, /\/\/ mine/)
+  const doc = jsonc.parse(text)
+  assert.deepEqual(doc.mcpServers.box, { type: 'http', url: DEFAULT_MCP_URL })
+  assert.equal(doc.theme, 'Default')
+  assert.deepEqual(client('gemini').connect(sb.ctx).actions, [])
+  assert.equal(backups(path.dirname(file)).length, 1, 'a no-op re-run makes no new backup')
+  assert.equal(client('gemini-cli').status(sb.ctx).entries[0].url, DEFAULT_MCP_URL)
+  client('gemini-cli').remove(sb.ctx)
+  assert.deepEqual(Object.keys(jsonc.parse(sb.read('.gemini/settings.json')).mcpServers), ['other'])
+})
+
+test('gemini-cli: a foreign box given as httpUrl is recognised and left alone', () => {
+  const sb = sandbox()
+  const original = JSON.stringify({ mcpServers: { box: { httpUrl: 'https://mcp.box.com' } } }, null, 2)
+  sb.write('.gemini/settings.json', original)
+  assert.throws(() => client('gemini-cli').connect(sb.ctx), (e) => e.foreign)
+  assert.equal(client('gemini-cli').status(sb.ctx).foreign.url, 'https://mcp.box.com')
+  client('gemini-cli').remove(sb.ctx)
+  assert.equal(sb.read('.gemini/settings.json'), original)
 })
 
 test('hermes: OAuth entry keeps comments; key mode puts the key only in .env (0600)', () => {
@@ -181,7 +209,7 @@ test('claude-code: default URL installs the plugin from the marketplace; overrid
   sb.write('.claude.json', JSON.stringify({ mcpServers: { 'box-control': { url: 'https://relay.simular.cloud/control' }, box: { type: 'http', url: DEFAULT_MCP_URL }, other: { command: 'y' } } }))
   client('claude').connect(sb.ctx)
   const state = () => JSON.parse(sb.read('fake-claude-state.json'))
-  assert.deepEqual(state().plugins, { 'box@simular-box': { enabled: true } })
+  assert.deepEqual(state().plugins, { 'box@simular-box': { enabled: true, url: DEFAULT_MCP_URL } })
   assert.deepEqual(Object.keys(JSON.parse(sb.read('.claude.json')).mcpServers), ['other'])
   assert.ok(state().calls.includes('plugin marketplace add simular-ai/box-plugin'))
   assert.deepEqual(client('claude').connect(sb.ctx).actions, [])
@@ -198,6 +226,35 @@ test('claude-code: default URL installs the plugin from the marketplace; overrid
   assert.equal(JSON.parse(sb.read('.claude.json')).mcpServers.box, undefined)
 })
 
+test('claude-code: a plugin installed before the move is updated to the new URL', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
+  const old = 'https://relay.simular.cloud/mcp'
+  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'box@simular-box': { enabled: true, url: old } }, calls: [] }))
+  const state = () => JSON.parse(sb.read('fake-claude-state.json'))
+  assert.equal(client('claude').status(sb.ctx).entries[0].url, old)
+  const dry = client('claude').connect({ ...sb.ctx, dryRun: true })
+  assert.match(dry.actions.join(' '), /would update plugin box@simular-box/)
+  assert.equal(state().plugins['box@simular-box'].url, old, 'a dry run updates nothing')
+  const res = client('claude').connect(sb.ctx)
+  assert.match(res.actions.join(' '), /updated plugin box@simular-box/)
+  assert.match(res.next[0], /^Restart Claude Code/)
+  assert.ok(state().calls.includes('plugin marketplace update simular-box'))
+  assert.ok(state().calls.includes('plugin update box@simular-box --scope user'))
+  assert.equal(state().plugins['box@simular-box'].url, DEFAULT_MCP_URL)
+  assert.deepEqual(client('claude').connect(sb.ctx).actions, [], 'idempotent once updated')
+  // Our own old user-scope box next to the plugin is removed; remove takes the plugin either way.
+  sb.write('.claude.json', JSON.stringify({ mcpServers: { box: { type: 'http', url: old } } }))
+  assert.match(client('claude').connect(sb.ctx).actions.join(' '), /removed the user-scope box server/)
+  client('claude').remove(sb.ctx)
+  assert.deepEqual(state().plugins, {})
+})
+
+test('claude-code: an update that leaves the old URL fails instead of claiming success', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
+  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'box@simular-box': { enabled: true, url: 'https://relay.simular.cloud/mcp' } }, staleMarketplace: true, calls: [] }))
+  assert.throws(() => client('claude').connect(sb.ctx), /still points at https:\/\/relay\.simular\.cloud\/mcp after an update/)
+})
+
 test('claude-desktop: writes nothing, prints connector steps', () => {
   const sb = sandbox()
   const res = client('claude-desktop').connect(sb.ctx)
@@ -208,7 +265,7 @@ test('claude-desktop: writes nothing, prints connector steps', () => {
 test('dry run writes nothing for file-based clients', () => {
   const sb = sandbox()
   const ctx = { ...sb.ctx, dryRun: true }
-  for (const id of ['cursor', 'codex', 'opencode', 'vscode', 'hermes']) {
+  for (const id of ['cursor', 'codex', 'opencode', 'vscode', 'gemini-cli', 'hermes']) {
     const res = client(id).connect(ctx, { mode: 'oauth' })
     assert.ok(res.actions[0].startsWith('would'), id)
   }
@@ -224,6 +281,7 @@ test('json clients: a foreign box blocks connect, survives remove, and --name in
     ['cursor', '.cursor/mcp.json', ['mcpServers']],
     ['opencode', '.config/opencode/opencode.json', ['mcp']],
     ['vscode', '.config/Code/User/mcp.json', ['servers']],
+    ['gemini-cli', '.gemini/settings.json', ['mcpServers']],
   ]
   for (const [id, rel, container] of cases) {
     const sb = sandbox()

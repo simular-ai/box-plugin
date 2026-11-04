@@ -3,7 +3,7 @@
   "mcpServers": {
     "box": {
       "type": "streamable-http",
-      "url": "https://relay.simular.cloud/mcp",
+      "url": "https://mcp.box.simular.ai/mcp",
       "headers": {
         "Authorization": "Bearer ${MCP_BOX_API_KEY}"
       }

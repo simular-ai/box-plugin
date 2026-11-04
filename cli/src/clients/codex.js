@@ -14,6 +14,12 @@ const file = (ctx) => path.join(home(ctx), 'config.toml')
 const servers = (ctx) => parseToml(readText(file(ctx)), file(ctx)).mcp_servers || {}
 const ourLegacy = (ctx, map) => LEGACY_SERVER_NAMES.filter((n) => map[n] && ctx.ours(map[n].url))
 
+// The Codex app (ChatGPT desktop) reads the same config.toml but ships no `codex` on PATH.
+function signInHint(ctx) {
+  if (ctx.which('codex')) return `Run \`codex mcp login ${ctx.name}\`, sign in in the browser and click Approve.`
+  return `Restart the Codex app, open Settings -> MCP servers and click Authenticate next to ${ctx.name}; sign in in the browser and click Approve.`
+}
+
 export default {
   id: 'codex',
   name: 'Codex',
@@ -56,8 +62,16 @@ export default {
     return {
       actions: res.changed ? [`${ctx.dryRun ? 'would write' : 'wrote'} [mcp_servers.${ctx.name}] to ${f}`] : [],
       backups: res.backup ? [res.backup] : [],
-      next: [`Run \`codex mcp login ${ctx.name}\`, sign in in the browser and click Approve.`],
+      next: [signInHint(ctx)],
     }
+  },
+
+  /** Shown when config.toml cannot be written (EACCES/EPERM, "Access is denied" on Windows). */
+  permissionHelp(ctx) {
+    return [
+      `If the Codex app holds the file, add box there instead: Settings -> MCP servers -> Add server, name it ${ctx.name}, choose Streamable HTTP, paste ${ctx.url} as the URL and click Save.`,
+      `Restart Codex, then click Authenticate next to ${ctx.name}, sign in in the browser and click Approve.`,
+    ]
   },
 
   remove(ctx) {

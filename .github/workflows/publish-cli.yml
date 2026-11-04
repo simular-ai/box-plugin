@@ -148,7 +148,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        client: [claude-code, codex, cursor, opencode, hermes, openclaw]
+        client: [claude-code, codex, cursor, opencode, gemini-cli, hermes, openclaw]
         exclude:
           # cursor-agent ships for Linux and macOS only.
           - os: windows-latest

@@ -6,7 +6,7 @@ Connect [box](https://box.simular.ai) to your AI apps in one command. box gives 
 npx @simular-ai/box connect
 ```
 
-The CLI finds the AI apps on this computer, asks which ones should use box, and adds the box MCP server (`https://relay.simular.cloud/mcp`) to each one in its own format. Other servers and settings in those files are left alone, each changed file gets a backup next to it (`*.box-backup-<time>`), and running it again changes nothing.
+The CLI finds the AI apps on this computer, asks which ones should use box, and adds the box MCP server (`https://mcp.box.simular.ai/mcp`) to each one in its own format. Other servers and settings in those files are left alone, each changed file gets a backup next to it (`*.box-backup-<time>`), and running it again changes nothing.
 
 ```bash
 npx @simular-ai/box doctor     # is box set up right in each app? is the endpoint up? is the key valid?
@@ -20,8 +20,9 @@ The command is `simular-box` (`box` belongs to box.com's CLI), so after `npm i -
 | App | `--client` | What connect does | Sign-in |
 | --- | --- | --- | --- |
 | Claude Code | `claude-code` | Installs the [`claude/`](../claude/) plugin (box server + box skill) with `claude plugin install box@simular-box`. With `BOX_MCP_URL` set, `claude mcp add --scope user --transport http box <url>` instead | OAuth: `/mcp` → box → Authenticate |
-| Codex | `codex` | Writes `[mcp_servers.box]` to `$CODEX_HOME/config.toml` (default `~/.codex`) | OAuth: `codex mcp login box` |
+| Codex | `codex` | Writes `[mcp_servers.box]` to `$CODEX_HOME/config.toml` (default `~/.codex`) | OAuth: `codex mcp login box`, or Settings → MCP servers → Authenticate in the Codex app |
 | Cursor | `cursor` | Merges `mcpServers.box` into `~/.cursor/mcp.json` | OAuth: Settings → MCP → Login |
+| Gemini CLI | `gemini-cli` | Merges `mcpServers.box` (`type: http`) into `~/.gemini/settings.json` | OAuth: `/mcp auth box` (in a trusted folder) |
 | OpenCode | `opencode` | Merges `mcp.box` (`type: remote`) into `~/.config/opencode/opencode.json(c)` | OAuth: `opencode mcp auth box` |
 | Hermes Agent | `hermes` | Writes `mcp_servers.box` to `$HERMES_HOME/config.yaml` (default `~/.hermes`); restarts a running gateway | OAuth (`hermes mcp login box`) or `--auth key` |
 | OpenClaw | `openclaw` | `openclaw mcp set box …` with `transport: streamable-http`; restarts a running Gateway when the key changes | OAuth (`openclaw mcp login box`) or `--auth key` |
@@ -30,7 +31,7 @@ The command is `simular-box` (`box` belongs to box.com's CLI), so after `npm i -
 
 Pick apps without prompts with `--client cursor,codex --yes`; `--yes` alone picks every app found. `--dry-run` shows what would change.
 
-The CLI only changes or removes a server that points at box by Simular (`relay.simular.cloud`, its staging host, `mcp.box.simular.ai`, or your `BOX_MCP_URL`). If an app already has a different server named `box`, such as box.com's MCP server, `connect` stops without changing anything, and `remove` leaves it alone. To add box next to it, use `--name simular-box`. A symlinked config stays a symlink: the file it points to is updated.
+The CLI only changes or removes a server that points at box by Simular (`mcp.box.simular.ai`, the old `relay.simular.cloud`, its staging host, or your `BOX_MCP_URL`). If an app already has a different server named `box`, such as box.com's MCP server, `connect` stops without changing anything, and `remove` leaves it alone. To add box next to it, use `--name simular-box`. A symlinked config stays a symlink: the file it points to is updated. If a config can't be written (owned by another user, or locked by the app), connect says so; for Codex it prints the steps to add box in the Codex app's Settings instead.
 
 ## Sign-in
 
@@ -49,15 +50,15 @@ Without `BOX_TOKEN`, an interactive run asks for the key with hidden input. The 
 
 `doctor` checks, for each app it finds:
 
-- box is configured, points at the current URL, and no old `box-control` server is left
-- the endpoint answers an unauthenticated request with `401` and a `WWW-Authenticate` link to its sign-in metadata
+- box is configured, points at the current URL (not the old `relay.simular.cloud`), and no old `box-control` server is left
+- the endpoint answers an unauthenticated request with `401` and a `WWW-Authenticate` link to its sign-in metadata, and that metadata names the same URL
 - a configured personal key is accepted (the key is sent to the box endpoint only, never printed)
 
 It prints a fix for each problem. `--json` prints a machine-readable report; the exit code is 1 when something needs fixing. OAuth sign-ins are stored by each app, so doctor can't see whether you've signed in.
 
 ## Other endpoints
 
-`BOX_MCP_URL` points everything at another endpoint (for example staging): `BOX_MCP_URL=https://… npx @simular-ai/box connect`. When box's endpoint moves, a new CLI version changes the default and `connect` updates each app.
+`BOX_MCP_URL` points everything at another endpoint (for example staging): `BOX_MCP_URL=https://… npx @simular-ai/box connect`. When box's endpoint moves, a new CLI version changes the default and `connect` updates each app: it rewrites a `box` entry that points at the old address and, for Claude Code, updates the `box@simular-box` plugin. Apps may then ask you to sign in to box again. box moved from `relay.simular.cloud` to `mcp.box.simular.ai` on 2026-11-04; `doctor` flags an app still on the old address.
 
 ## Development
 

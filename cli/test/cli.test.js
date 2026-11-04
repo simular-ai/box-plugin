@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from '../src/args.js'
-import { mcpUrl, maskKey, DEFAULT_MCP_URL, EXAMPLE_PROMPTS } from '../src/constants.js'
+import { mcpUrl, maskKey, isOldUrl, isOurUrl, DEFAULT_MCP_URL, EXAMPLE_PROMPTS } from '../src/constants.js'
 import { parseWwwAuthenticate, probeEndpoint, checkKey } from '../src/probe.js'
 import { runDoctor } from '../src/cli.js'
 import { sandbox } from './helpers.js'
@@ -50,6 +50,29 @@ test('probe: parses WWW-Authenticate and follows resource metadata', async () =>
   assert.match(down.error, /expected 401/)
 })
 
+test('probe: metadata naming another resource fails (what the old relay address now returns)', async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes('.well-known')) return new Response(JSON.stringify({ resource: 'https://mcp.box.simular.ai/mcp', authorization_servers: ['https://mcp.box.simular.ai'] }), { status: 200 })
+    return new Response(null, { status: 401, headers: { 'www-authenticate': 'Bearer resource_metadata="https://mcp.box.simular.ai/.well-known/oauth-protected-resource/mcp"' } })
+  }
+  const old = await probeEndpoint('https://relay.simular.cloud/mcp', { fetchImpl })
+  assert.equal(old.ok, false)
+  assert.match(old.error, /names https:\/\/mcp\.box\.simular\.ai\/mcp, not https:\/\/relay\.simular\.cloud\/mcp/)
+  assert.equal((await probeEndpoint('https://mcp.box.simular.ai/mcp', { fetchImpl })).ok, true)
+  assert.equal((await probeEndpoint('https://mcp.box.simular.ai/mcp/', { fetchImpl })).ok, true, 'a trailing slash is the same resource')
+})
+
+test('url: the old relay address is ours but outdated; staging is not', () => {
+  assert.equal(DEFAULT_MCP_URL, 'https://mcp.box.simular.ai/mcp')
+  for (const u of ['https://relay.simular.cloud/mcp', 'https://staging.relay.simular.cloud/mcp', DEFAULT_MCP_URL]) assert.ok(isOurUrl(u, DEFAULT_MCP_URL), u)
+  assert.equal(isOurUrl('https://mcp.box.com', DEFAULT_MCP_URL), false)
+  assert.equal(isOldUrl('https://relay.simular.cloud/mcp', DEFAULT_MCP_URL), true)
+  assert.equal(isOldUrl('https://staging.relay.simular.cloud/mcp', DEFAULT_MCP_URL), false)
+  assert.equal(isOldUrl(DEFAULT_MCP_URL, DEFAULT_MCP_URL), false)
+  assert.equal(isOldUrl('https://relay.simular.cloud/mcp', 'https://relay.simular.cloud/mcp'), false, 'not outdated when BOX_MCP_URL points there')
+  assert.equal(isOldUrl('not a url', DEFAULT_MCP_URL), false)
+})
+
 test('doctor: flags a stale URL, a legacy server and a rejected key, with fixes', async () => {
   const sb = sandbox()
   sb.write('.cursor/mcp.json', JSON.stringify({ mcpServers: { box: { url: 'https://relay.simular.cloud/old' }, 'box-control': { url: 'https://relay.simular.cloud/control' } } }))
@@ -61,10 +84,11 @@ test('doctor: flags a stale URL, a legacy server and a rejected key, with fixes'
   })
   const cursor = report.clients.find((c) => c.id === 'cursor')
   assert.equal(cursor.ok, false)
-  assert.match(cursor.problems.join('\n'), /points at https:\/\/relay.simular.cloud\/old/)
+  assert.match(cursor.problems.join('\n'), /points at https:\/\/relay.simular.cloud\/old, box's old address/)
   assert.match(cursor.problems.join('\n'), /box-control/)
   assert.deepEqual(cursor.fixes, ['npx @simular-ai/box connect --client cursor'])
   const hermes = report.clients.find((c) => c.id === 'hermes')
+  assert.match(hermes.problems.join('\n'), /relay\.simular\.cloud\/mcp, box's old address, which no longer signs in; box is now at https:\/\/mcp\.box\.simular\.ai\/mcp/)
   assert.deepEqual(hermes.key, { configured: true, valid: false, status: 401 })
   assert.ok(hermes.fixes.some((f) => f.includes('--auth key')))
   assert.ok(!JSON.stringify(report).includes(KEY), 'the report never contains the key')
@@ -79,14 +103,36 @@ test('real CLI: connect --client cursor,codex --yes in a temp HOME, then remove'
   const sb = sandbox()
   const res = run(['connect', '--client', 'cursor,codex', '--yes'], sb)
   assert.equal(res.status, 0, res.stderr + res.stdout)
-  assert.match(res.stdout, /codex mcp login box/)
+  // No `codex` on PATH (the Codex app alone): the hint points at the app's Settings.
+  assert.match(res.stdout, /Settings -> MCP servers and click Authenticate next to box/)
+  assert.ok(!res.stdout.includes('codex mcp login'), 'does not assume the codex CLI')
   assert.match(res.stdout, /start a new chat \(or restart the app\)/)
   for (const e of EXAMPLE_PROMPTS) assert.ok(res.stdout.includes(e), `shows the example prompt: ${e}`)
   assert.deepEqual(JSON.parse(sb.read('.cursor/mcp.json')), { mcpServers: { box: { url: DEFAULT_MCP_URL } } })
-  assert.match(sb.read('.codex/config.toml'), /\[mcp_servers\.box\]\nurl = "https:\/\/relay\.simular\.cloud\/mcp"/)
+  assert.match(sb.read('.codex/config.toml'), /\[mcp_servers\.box\]\nurl = "https:\/\/mcp\.box\.simular\.ai\/mcp"/)
   const rm = run(['remove', '--client', 'cursor,codex', '--yes'], sb)
   assert.equal(rm.status, 0, rm.stderr)
   assert.ok(!rm.stdout.includes(EXAMPLE_PROMPTS[0]), 'remove shows no example prompts')
+  assert.deepEqual(JSON.parse(sb.read('.cursor/mcp.json')), { mcpServers: {} })
+})
+
+test('real CLI: connect moves old relay entries to the new URL and says to sign in again; remove takes either', () => {
+  const sb = sandbox()
+  sb.write('.cursor/mcp.json', JSON.stringify({ mcpServers: { box: { url: 'https://relay.simular.cloud/mcp' }, 'box-control': { url: 'https://relay.simular.cloud/control' }, other: { url: 'https://example.com/mcp' } } }))
+  sb.write('.codex/config.toml', '[mcp_servers.box]\nurl = "https://relay.simular.cloud/mcp"\n')
+  const res = run(['connect', '--client', 'cursor,codex', '--yes'], sb)
+  assert.equal(res.status, 0, res.stderr + res.stdout)
+  assert.match(res.stdout, /Cursor: wrote box/)
+  assert.match(res.stdout, /box moved from https:\/\/relay\.simular\.cloud\/mcp to https:\/\/mcp\.box\.simular\.ai\/mcp\. Cursor may ask you to sign in to box again/)
+  assert.match(res.stdout, /Codex may ask you to sign in to box again/)
+  assert.deepEqual(JSON.parse(sb.read('.cursor/mcp.json')).mcpServers, { other: { url: 'https://example.com/mcp' }, box: { url: DEFAULT_MCP_URL } })
+  assert.match(sb.read('.codex/config.toml'), /url = "https:\/\/mcp\.box\.simular\.ai\/mcp"/)
+  const again = run(['connect', '--client', 'cursor,codex', '--yes'], sb)
+  assert.ok(!again.stdout.includes('sign in to box again'), 'a re-run says nothing about moving')
+
+  // remove takes an entry at the old address too.
+  sb.write('.cursor/mcp.json', JSON.stringify({ mcpServers: { box: { url: 'https://relay.simular.cloud/mcp' } } }))
+  assert.equal(run(['remove', '--client', 'cursor', '--yes'], sb).status, 0)
   assert.deepEqual(JSON.parse(sb.read('.cursor/mcp.json')), { mcpServers: {} })
 })
 
@@ -126,4 +172,20 @@ test('real CLI: example prompts only after something was set up', () => {
   assert.ok(!broken.stdout.includes(EXAMPLE_PROMPTS[0]), 'no example prompts when every app failed')
   const doctor = run(['doctor', '--client', 'cursor'], sb)
   assert.ok(!doctor.stdout.includes(EXAMPLE_PROMPTS[0]), 'doctor shows no example prompts')
+})
+
+test('real CLI: a config it may not write gets a clear message (and the Codex app steps)', { skip: (process.platform === 'win32' || process.getuid?.() === 0) && 'needs POSIX permissions and a non-root user' }, () => {
+  const sb = sandbox()
+  sb.write('.codex/config.toml', 'model = "gpt-5"\n')
+  fs.chmodSync(path.join(sb.home, '.codex'), 0o500)
+  try {
+    const res = run(['connect', '--client', 'codex', '--yes'], sb)
+    assert.notEqual(res.status, 0)
+    const out = res.stdout + res.stderr
+    assert.match(out, /could not change .*config\.toml: the file or its folder/)
+    assert.match(out, /Settings -> MCP servers -> Add server, name it box, choose Streamable HTTP, paste https:\/\/mcp\.box\.simular\.ai\/mcp/)
+    assert.match(out, /click Authenticate next to box/)
+  } finally {
+    fs.chmodSync(path.join(sb.home, '.codex'), 0o700)
+  }
 })

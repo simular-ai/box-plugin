@@ -55,10 +55,14 @@ const a = process.argv.slice(2)
 state.calls.push(a.join(' '))
 const save = () => { fs.writeFileSync(stateFile, JSON.stringify(state)); fs.writeFileSync(cfgFile, JSON.stringify(cfg)) }
 const is = (...w) => w.every((x, i) => a[i] === x)
-if (is('plugin', 'list')) console.log(JSON.stringify(Object.entries(state.plugins).map(([id, p]) => ({ id, enabled: p.enabled, mcpServers: { box: { type: 'http', url: 'https://relay.simular.cloud/mcp' } } }))))
+// The marketplace's plugin points at state.latestUrl (default: the current URL); an installed plugin keeps the URL it was installed with until updated.
+const latest = () => state.latestUrl || 'https://mcp.box.simular.ai/mcp'
+if (is('plugin', 'list')) console.log(JSON.stringify(Object.entries(state.plugins).map(([id, p]) => ({ id, scope: 'user', enabled: p.enabled, mcpServers: { box: { type: 'http', url: p.url } } }))))
 else if (is('plugin', 'marketplace', 'list')) console.log(JSON.stringify(state.marketplaces.map((name) => ({ name }))))
 else if (is('plugin', 'marketplace', 'add')) state.marketplaces.push('simular-box')
-else if (is('plugin', 'install')) { if (!state.marketplaces.includes('simular-box')) { console.error('marketplace not found'); process.exit(1) } state.plugins[a[2]] = { enabled: true } }
+else if (is('plugin', 'install')) { if (!state.marketplaces.includes('simular-box')) { console.error('marketplace not found'); process.exit(1) } state.plugins[a[2]] = { enabled: true, url: latest() } }
+else if (is('plugin', 'marketplace', 'update')) {}
+else if (is('plugin', 'update')) { if (!state.staleMarketplace) state.plugins[a[2]].url = latest() }
 else if (is('plugin', 'enable')) state.plugins[a[2]].enabled = true
 else if (is('plugin', 'disable')) state.plugins[a[2]].enabled = false
 else if (is('plugin', 'uninstall')) delete state.plugins[a[2]]

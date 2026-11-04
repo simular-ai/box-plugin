@@ -75,6 +75,7 @@ export default {
   connect(ctx) {
     if (!ctx.which('claude')) throw new Error('the `claude` command is not on PATH; install Claude Code first (https://code.claude.com)')
     const actions = []
+    let updated = false
     const user = readUserServers(ctx)
     const mine = (n) => user[n] && ctx.ours(user[n].url)
     if (ctx.url !== DEFAULT_MCP_URL && user[ctx.name] && !mine(ctx.name)) {
@@ -98,9 +99,30 @@ export default {
           must(ctx.run('claude', ['plugin', 'install', PLUGIN, '--scope', 'user'], { timeoutMs: 180000 }), 'claude plugin install')
         }
         actions.push(`installed plugin ${PLUGIN} (box server + box skill)`)
-      } else if (!plugin.enabled) {
-        if (!ctx.dryRun) must(ctx.run('claude', ['plugin', 'enable', PLUGIN]), 'claude plugin enable')
-        actions.push(`enabled plugin ${PLUGIN}`)
+      } else {
+        // Claude Code doesn't auto-update third-party marketplaces, so a plugin installed before
+        // box moved keeps the old URL until the marketplace and the plugin are updated.
+        const pinned = plugin.mcpServers?.box?.url
+        if (pinned && pinned !== DEFAULT_MCP_URL) {
+          if (!ctx.dryRun) {
+            must(ctx.run('claude', ['plugin', 'marketplace', 'update', MARKETPLACE], { timeoutMs: 180000 }), 'claude plugin marketplace update')
+            const scope = ['user', 'project', 'local'].includes(plugin.scope) ? ['--scope', plugin.scope] : []
+            must(ctx.run('claude', ['plugin', 'update', PLUGIN, ...scope], { timeoutMs: 180000 }), 'claude plugin update')
+            const now = pluginState(ctx)?.mcpServers?.box?.url
+            if (now !== DEFAULT_MCP_URL) {
+              throw new Error(
+                `the ${PLUGIN} plugin still points at ${now || 'an unknown URL'} after an update; its marketplace "${MARKETPLACE}" may not come from ${MARKETPLACE_SOURCE}. ` +
+                  `Run \`claude plugin uninstall ${PLUGIN}\` and \`claude plugin marketplace remove ${MARKETPLACE}\`, then connect again`,
+              )
+            }
+          }
+          actions.push(`${ctx.dryRun ? 'would update' : 'updated'} plugin ${PLUGIN} (box server now at ${DEFAULT_MCP_URL})`)
+          updated = true
+        }
+        if (!plugin.enabled) {
+          if (!ctx.dryRun) must(ctx.run('claude', ['plugin', 'enable', PLUGIN]), 'claude plugin enable')
+          actions.push(`enabled plugin ${PLUGIN}`)
+        }
       }
       // Our own user-scope box next to the plugin would show box twice. Someone else's stays.
       if (mine(SERVER_NAME)) {
@@ -125,7 +147,7 @@ export default {
     const label = ctx.url === DEFAULT_MCP_URL ? 'plugin:box:box' : ctx.name
     return {
       actions,
-      next: [`Start Claude Code, run /mcp, pick ${label} and choose Authenticate; sign in and click Approve in the browser.`],
+      next: [`${updated ? 'Restart Claude Code (a plugin update applies on restart), then run' : 'Start Claude Code, run'} /mcp, pick ${label} and choose Authenticate; sign in and click Approve in the browser.`],
     }
   },
 
