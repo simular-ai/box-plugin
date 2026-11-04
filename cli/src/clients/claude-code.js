@@ -108,6 +108,13 @@ export default {
             must(ctx.run('claude', ['plugin', 'marketplace', 'update', MARKETPLACE], { timeoutMs: 180000 }), 'claude plugin marketplace update')
             const scope = ['user', 'project', 'local'].includes(plugin.scope) ? ['--scope', plugin.scope] : []
             must(ctx.run('claude', ['plugin', 'update', PLUGIN, ...scope], { timeoutMs: 180000 }), 'claude plugin update')
+            const now = pluginState(ctx)?.mcpServers?.box?.url
+            if (now !== DEFAULT_MCP_URL) {
+              throw new Error(
+                `the ${PLUGIN} plugin still points at ${now || 'an unknown URL'} after an update; its marketplace "${MARKETPLACE}" may not come from ${MARKETPLACE_SOURCE}. ` +
+                  `Run \`claude plugin uninstall ${PLUGIN}\` and \`claude plugin marketplace remove ${MARKETPLACE}\`, then connect again`,
+              )
+            }
           }
           actions.push(`${ctx.dryRun ? 'would update' : 'updated'} plugin ${PLUGIN} (box server now at ${DEFAULT_MCP_URL})`)
           updated = true

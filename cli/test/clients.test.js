@@ -249,6 +249,12 @@ test('claude-code: a plugin installed before the move is updated to the new URL'
   assert.deepEqual(state().plugins, {})
 })
 
+test('claude-code: an update that leaves the old URL fails instead of claiming success', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
+  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'box@simular-box': { enabled: true, url: 'https://relay.simular.cloud/mcp' } }, staleMarketplace: true, calls: [] }))
+  assert.throws(() => client('claude').connect(sb.ctx), /still points at https:\/\/relay\.simular\.cloud\/mcp after an update/)
+})
+
 test('claude-desktop: writes nothing, prints connector steps', () => {
   const sb = sandbox()
   const res = client('claude-desktop').connect(sb.ctx)

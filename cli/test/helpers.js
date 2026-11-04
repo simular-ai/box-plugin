@@ -62,7 +62,7 @@ else if (is('plugin', 'marketplace', 'list')) console.log(JSON.stringify(state.m
 else if (is('plugin', 'marketplace', 'add')) state.marketplaces.push('simular-box')
 else if (is('plugin', 'install')) { if (!state.marketplaces.includes('simular-box')) { console.error('marketplace not found'); process.exit(1) } state.plugins[a[2]] = { enabled: true, url: latest() } }
 else if (is('plugin', 'marketplace', 'update')) {}
-else if (is('plugin', 'update')) state.plugins[a[2]].url = latest()
+else if (is('plugin', 'update')) { if (!state.staleMarketplace) state.plugins[a[2]].url = latest() }
 else if (is('plugin', 'enable')) state.plugins[a[2]].enabled = true
 else if (is('plugin', 'disable')) state.plugins[a[2]].enabled = false
 else if (is('plugin', 'uninstall')) delete state.plugins[a[2]]
