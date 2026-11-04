@@ -12,13 +12,11 @@ name: Bump box-portal
 # peter-evans/create-pull-request, so a re-run or the next release updates the same open PR. A
 # version never moves backwards, on main or on that open PR.
 #
-# Tokens, both minted for box-portal only:
-# - Dry runs: the org-wide simular-ci-deps app (org secret SIMULAR_CI_APP_PRIVATE_KEY, org
-#   variable SIMULAR_CI_APP_ID), asking for contents: read, which it already has everywhere.
-# - Real runs: a dedicated app installed on box-portal alone with Contents + Pull requests write
-#   (repo variable BOX_PORTAL_APP_CLIENT_ID, repo secret BOX_PORTAL_APP_PRIVATE_KEY, both on
-#   box-plugin only). Not simular-ci-deps: its key is visible to every org repo, so giving it write
-#   would let any org workflow write to any repo.
+# Tokens: the org's simular-ci-deps app (org variable SIMULAR_CI_APP_ID, org secret
+# SIMULAR_CI_APP_PRIVATE_KEY), each token scoped to box-portal alone. Dry runs ask for
+# contents: read; real runs ask for contents and pull-requests: write, which the app must be
+# granted. Its key is visible to every org repo, so that write reaches any org workflow: an
+# accepted risk (Chenchen, 2026-11-04).
 
 on:
   workflow_call:
@@ -40,8 +38,6 @@ on:
     secrets:
       SIMULAR_CI_APP_PRIVATE_KEY:
         required: true
-      BOX_PORTAL_APP_PRIVATE_KEY:
-        required: false
   workflow_dispatch:
     inputs:
       plugin:
@@ -148,24 +144,13 @@ jobs:
           repositories: box-portal
           permission-contents: read
 
-      - name: The box-portal bump app is configured
-        if: steps.release.outputs.dry_run != 'true'
-        env:
-          CLIENT_ID: ${{ vars.BOX_PORTAL_APP_CLIENT_ID }}
-          HAS_KEY: ${{ secrets.BOX_PORTAL_APP_PRIVATE_KEY != '' }}
-        run: |
-          if [ -z "$CLIENT_ID" ] || [ "$HAS_KEY" != true ]; then
-            echo "::error::Set the BOX_PORTAL_APP_CLIENT_ID variable and BOX_PORTAL_APP_PRIVATE_KEY secret on box-plugin (see this file's header)." >&2
-            exit 1
-          fi
-
       - name: Mint a box-portal write token
         id: write-token
         if: steps.release.outputs.dry_run != 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          client-id: ${{ vars.BOX_PORTAL_APP_CLIENT_ID }}
-          private-key: ${{ secrets.BOX_PORTAL_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.SIMULAR_CI_APP_ID }}
+          private-key: ${{ secrets.SIMULAR_CI_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: box-portal
           permission-contents: write

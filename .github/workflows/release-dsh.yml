@@ -56,4 +56,3 @@ jobs:
       version: ${{ needs.release.outputs.version }}
     secrets:
       SIMULAR_CI_APP_PRIVATE_KEY: ${{ secrets.SIMULAR_CI_APP_PRIVATE_KEY }}
-      BOX_PORTAL_APP_PRIVATE_KEY: ${{ secrets.BOX_PORTAL_APP_PRIVATE_KEY }}
