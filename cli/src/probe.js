@@ -68,12 +68,23 @@ export async function probeEndpoint(url, opts = {}) {
     const doc = await meta.json()
     result.authorizationServer = doc.authorization_servers?.[0] || null
     if (!result.authorizationServer) throw new Error('no authorization_servers')
+    result.resource = doc.resource || null
   } catch (err) {
     result.error = `protected-resource metadata at ${auth.resource_metadata} is unusable: ${err.message}`
     return result
   }
+  // MCP clients refuse to sign in when the metadata names another resource (RFC 9728 section 3.3),
+  // which is what an old address that now points at a new one looks like.
+  if (result.resource && trimSlash(result.resource) !== trimSlash(url)) {
+    result.error = `the sign-in metadata names ${result.resource}, not ${url}, so apps will refuse to sign in (box may have moved there)`
+    return result
+  }
   result.ok = true
   return result
+}
+
+function trimSlash(u) {
+  return String(u).replace(/\/+$/, '')
 }
 
 /**

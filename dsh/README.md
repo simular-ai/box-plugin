@@ -6,10 +6,10 @@ dsh's MCP client sends fixed headers and has no sign-in, so it reaches box with 
 2. Install the plugin. In dsh Desktop (or dsh web), open **Plugins → Add plugin**, paste this link and turn the plugin on:
 
    ```
-   https://github.com/simular-ai/box-plugin/releases/download/dsh-v0.2.0/dsh-box.tgz
+   https://github.com/simular-ai/box-plugin/releases/download/dsh-v0.2.1/dsh-box.tgz
    ```
 
-   From a terminal: `dsh plugin add https://github.com/simular-ai/box-plugin/releases/download/dsh-v0.2.0/dsh-box.tgz`
+   From a terminal: `dsh plugin add https://github.com/simular-ai/box-plugin/releases/download/dsh-v0.2.1/dsh-box.tgz`
 3. Open **box** on the Plugins page, paste your key and click **Save**. box connects within a second; changing the key later needs no restart.
 
 box's tools show up as `mcp__box__*`.

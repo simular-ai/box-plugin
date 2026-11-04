@@ -3,7 +3,7 @@ import * as p from '@clack/prompts'
 import { parseArgs } from './args.js'
 import { createContext } from './context.js'
 import { CLIENTS, findClient } from './clients/index.js'
-import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, EXAMPLE_PROMPTS, looksLikeKey, validServerName } from './constants.js'
+import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, EXAMPLE_PROMPTS, isOldUrl, looksLikeKey, validServerName } from './constants.js'
 import { probeEndpoint, checkKey } from './probe.js'
 
 const VERSION = createRequire(import.meta.url)('../package.json').version
@@ -182,10 +182,14 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
     const spin = isTTY ? p.spinner() : { start() {}, stop: (msg, code) => (code ? p.log.error(msg) : p.log.success(msg)) }
     spin.start(`${client.name}`)
     try {
+      const moved = movedFrom(ctx, client)
       const res = await client.connect(ctx, { key, mode: modes[client.id] })
       spin.stop(`${client.name}: ${res.actions.length ? res.actions.join('; ') : 'already set up'}`)
       for (const b of res.backups || []) p.log.message(`  backup: ${b}`)
       for (const w of res.warnings || []) p.log.warn(`  ${w}`)
+      if (moved.length && res.actions.length && !ctx.dryRun) {
+        p.log.warn(`  box moved from ${moved.join(', ')} to ${ctx.url}. ${client.name} may ask you to sign in to box again.`)
+      }
       for (const n of res.next || []) next.push(`${client.name}: ${n}`)
       connected++
     } catch (err) {
@@ -205,6 +209,12 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
   }
   p.outro(`Watch your box live: ${WATCH_URL}  |  Keys and connected apps: ${KEYS_URL}  |  Check: npx @simular-ai/box doctor`)
   return failed ? 1 : 0
+}
+
+/** The old box addresses a client points at before connect rewrites them. */
+function movedFrom(ctx, client) {
+  const st = safe(() => client.status(ctx), null)
+  return [...new Set((st?.entries || []).map((e) => e.url).filter((u) => u && isOldUrl(u, ctx.url)))]
 }
 
 /** EACCES/EPERM, or EBUSY (Windows: the app holds the file open), including as text ("Access is denied"). */
@@ -294,7 +304,10 @@ export async function runDoctor(ctx, flags, { probe = probeEndpoint, check = che
       row.fixes.push(fix)
     }
     for (const e of st.entries) {
-      if (e.url && e.url !== ctx.url) {
+      if (e.url && isOldUrl(e.url, ctx.url)) {
+        row.problems.push(`${e.where} points at ${e.url}, box's old address, which no longer signs in; box is now at ${ctx.url}`)
+        row.fixes.push(fix)
+      } else if (e.url && e.url !== ctx.url) {
         row.problems.push(`${e.where} points at ${e.url}, not ${ctx.url}`)
         row.fixes.push(fix)
       }

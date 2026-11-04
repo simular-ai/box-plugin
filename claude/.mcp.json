@@ -2,7 +2,7 @@
   "mcpServers": {
     "box": {
       "type": "http",
-      "url": "https://relay.simular.cloud/mcp"
+      "url": "https://mcp.box.simular.ai/mcp"
     }
   }
 }
