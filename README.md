@@ -11,6 +11,10 @@ Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` 
 | Any of Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Hermes, OpenClaw, VS Code (and steps for Claude Desktop) | [`cli/`](cli/) | OAuth; personal key with `--auth key` for Hermes and OpenClaw | `npx @simular-ai/box connect` (check with `npx @simular-ai/box doctor`) |
 | Hermes Agent | [`hermes/`](hermes/) | Personal key (`cb_...`) in `MCP_BOX_API_KEY`; OAuth optional | [hermes/README.md](hermes/README.md) |
 
+## Offload: move a coding task into your box and back
+
+Going offline in the middle of a task? In Claude Code with the plugin, `/box:offload` hands the task to a fresh Claude Code (or Codex, Cursor) session in your box, which keeps working while you are away; `/box:back` brings its commits and its written hand-over home and merges them. Any other agent or a plain terminal uses `npx @simular-ai/box offload` and `npx @simular-ai/box back`. Setup and details: [cli/README.md](cli/README.md#offload).
+
 ## Adding an agent
 
 Add a folder named after the agent with its own manifest, MCP config and, where the agent supports skills, a copy of `claude/skills/box/SKILL.md`. Point it at `https://mcp.box.simular.ai/mcp`. Use OAuth sign-in where the agent supports it; otherwise read a personal key from an environment variable or the agent's own credentials store, never from a file in the package. Add a row above.

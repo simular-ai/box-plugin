@@ -1,0 +1,232 @@
+syntax = "proto3";
+
+package cocoonbox.agent.v1;
+
+import "cocoonbox/agent/v1/agents.proto";
+
+option go_package = "github.com/simular-ai/box/api/gen/cocoonbox/agent/v1;agentv1";
+
+service Session {
+  rpc Hello(HelloRequest) returns (HelloResponse);
+  // Events streams live changes; reconnect with the last seen offset.
+  rpc Events(EventsRequest) returns (stream Event);
+  // Screen carries raw RFB bytes between the client and the box's VNC server.
+  // The first client frame must be `open`; the stream ends when either side closes.
+  rpc Screen(stream ScreenClientFrame) returns (stream ScreenServerFrame);
+  // ActiveOrigin returns the origin of the active tab of the box's Chrome.
+  rpc ActiveOrigin(ActiveOriginRequest) returns (ActiveOriginResponse);
+  // FillCredential fills the sign-in form of the active tab when its origin
+  // equals `origin` (scheme, host and port), else FAILED_PRECONDITION. App
+  // only: it is no MCP tool, and its values are never logged or recorded.
+  rpc FillCredential(FillCredentialRequest) returns (FillCredentialResponse);
+  // Exec runs a command as the desktop user and carries its stdin, stdout and
+  // stderr. The first client frame must be `start`. `eof`, or the client
+  // half-closing the stream, closes the command's stdin. The last server frame
+  // is `exit_code`. Cancelling the stream kills the command's process group.
+  // Owner only.
+  rpc Exec(stream ExecClientFrame) returns (stream ExecServerFrame);
+}
+
+message ExecClientFrame {
+  oneof body {
+    ExecStart start = 1;
+    bytes stdin = 2;
+    ExecEof eof = 3;
+    // Sent to the command's process group.
+    ExecSignal signal = 4;
+    // The terminal size of a command started with `tty`.
+    ExecWindow resize = 5;
+  }
+}
+
+message ExecStart {
+  // Run by a login shell, `bash -lc`, in /workspace, as rsh and ssh run a
+  // remote command.
+  string command = 1;
+  // Present: the command runs on a pseudo-terminal, and stdout carries its
+  // stderr too.
+  ExecTty tty = 2;
+}
+
+message ExecTty {
+  // TERM for the command.
+  string term = 1;
+  ExecWindow window = 2;
+  // The terminfo source of `term` (`infocmp -x` output), at most 256 KiB. A box
+  // without an entry for `term` compiles it into the user's ~/.terminfo;
+  // without one, or when it does not compile, the command gets xterm-256color.
+  string terminfo = 3;
+}
+
+message ExecWindow {
+  uint32 rows = 1;
+  uint32 cols = 2;
+}
+
+message ExecEof {}
+
+enum ExecSignal {
+  EXEC_SIGNAL_UNSPECIFIED = 0;
+  EXEC_SIGNAL_INT = 1;
+  EXEC_SIGNAL_TERM = 2;
+}
+
+message ExecServerFrame {
+  oneof body {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    // The command's exit status, or 128 plus the signal that ended it.
+    int32 exit_code = 3;
+  }
+}
+
+message HelloRequest {
+  string client_version = 1;
+}
+
+message HelloResponse {
+  string agent_version = 1;
+  // The screen size the image boots at: 1280x800 on a desktop, 720x1280 on
+  // Android. A later change in the box, such as `wm size`, is not reflected.
+  uint32 screen_width = 2;
+  uint32 screen_height = 3;
+  repeated string models = 4;
+  string default_main_model = 5;
+  Automation automation = 6;
+}
+
+// Automation is what the box's screen is, from the guide its image holds.
+enum Automation {
+  AUTOMATION_UNSPECIFIED = 0;
+  // A desktop driven through cua-driver only.
+  AUTOMATION_PLAIN = 1;
+  // A desktop that runs GUI plans and scripts on the desk runtime.
+  AUTOMATION_DESK = 2;
+  // An Android phone in the box, driven through adb.
+  AUTOMATION_ANDROID = 3;
+}
+
+message ActiveOriginRequest {}
+
+message ActiveOriginResponse {
+  // As `location.origin`, e.g. "https://example.com" or "http://127.0.0.1:8080".
+  string origin = 1;
+}
+
+message FillCredentialRequest {
+  string origin = 1;
+  string username = 2;
+  oneof secret {
+    string password = 3;
+    // A one-time code, filled into the page's code field.
+    string code = 4;
+  }
+  bool submit = 5;
+}
+
+message FillCredentialResponse {
+  // The kinds of field filled: "username", "password", "code".
+  repeated string filled = 1;
+  bool submitted = 2;
+}
+
+message EventsRequest {
+  // Last Event.offset seen; 0 starts from now.
+  uint64 from_offset = 1;
+}
+
+message Event {
+  uint64 offset = 1;
+  oneof body {
+    TranscriptEntry transcript = 10;
+    Agent agent = 11;
+    ComputerAction computer_action = 12;
+    TextDelta text_delta = 13;
+    ReasoningDelta reasoning_delta = 14;
+    AgentDeleted agent_deleted = 15;
+    OffloadUpdate offload = 16;
+  }
+}
+
+// OffloadUpdate says a box CLI session of an offloaded repo posted to its
+// outbox or changed status. It carries no message text; `cocoonbox-agent
+// offload read` returns that.
+message OffloadUpdate {
+  // The repo key.
+  string repo = 1;
+  // The directory name under /workspace.
+  string name = 2;
+  // The box CLI: "claude", "codex" or "cursor".
+  string cli = 3;
+  string offload_id = 4;
+  // Unspecified for a status change.
+  OffloadEntry entry = 5;
+  // The outbox seq of `entry`; 0 for a status change.
+  uint64 seq = 6;
+  OffloadStatus status = 7;
+}
+
+enum OffloadEntry {
+  OFFLOAD_ENTRY_UNSPECIFIED = 0;
+  OFFLOAD_ENTRY_PROGRESS = 1;
+  OFFLOAD_ENTRY_QUESTION = 2;
+  OFFLOAD_ENTRY_BACK = 3;
+  OFFLOAD_ENTRY_BLOCKED = 4;
+}
+
+enum OffloadStatus {
+  OFFLOAD_STATUS_UNSPECIFIED = 0;
+  OFFLOAD_STATUS_WORKING = 1;
+  OFFLOAD_STATUS_IDLE = 2;
+  OFFLOAD_STATUS_WAITING_FOR_USER = 3;
+  OFFLOAD_STATUS_BLOCKED = 4;
+  OFFLOAD_STATUS_STOPPED = 5;
+}
+
+// AgentDeleted says the agent and its transcript are gone.
+message AgentDeleted {
+  string agent_id = 1;
+}
+
+// TextDelta is a live fragment of an assistant text block. Deltas are not
+// replayed on reconnect; the complete block follows as a TranscriptEntry whose
+// TextBlock carries the same (turn_id, block).
+message TextDelta {
+  string agent_id = 1;
+  string turn_id = 2;
+  uint32 block = 3;
+  string text = 4;
+  string subagent = 5;
+}
+
+// ReasoningDelta is TextDelta for reasoning blocks.
+message ReasoningDelta {
+  string agent_id = 1;
+  string turn_id = 2;
+  uint32 block = 3;
+  string text = 4;
+  string subagent = 5;
+}
+
+// ComputerAction mirrors an input the agent is about to inject, so the client
+// can highlight it on the live view.
+message ComputerAction {
+  string agent_id = 1;
+  string action = 2;
+  int32 x = 3;
+  int32 y = 4;
+  string text = 5;
+}
+
+message ScreenClientFrame {
+  oneof body {
+    ScreenOpen open = 1;
+    bytes data = 2;
+  }
+}
+
+message ScreenOpen {}
+
+message ScreenServerFrame {
+  bytes data = 1;
+}
