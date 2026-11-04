@@ -138,7 +138,7 @@ test('real CLI: a config it may not write gets a clear message (and the Codex ap
     const res = run(['connect', '--client', 'codex', '--yes'], sb)
     assert.notEqual(res.status, 0)
     const out = res.stdout + res.stderr
-    assert.match(out, /permission denied/)
+    assert.match(out, /could not change .*config\.toml: the file or its folder/)
     assert.match(out, /Settings -> MCP servers -> Add server, name it box, choose Streamable HTTP, paste https:\/\/relay\.simular\.cloud\/mcp/)
     assert.match(out, /click Authenticate next to box/)
   } finally {

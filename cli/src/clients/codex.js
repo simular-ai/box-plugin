@@ -69,7 +69,7 @@ export default {
   /** Shown when config.toml cannot be written (EACCES/EPERM, "Access is denied" on Windows). */
   permissionHelp(ctx) {
     return [
-      `Add box in the Codex app instead: Settings -> MCP servers -> Add server, name it ${ctx.name}, choose Streamable HTTP, paste ${ctx.url} as the URL and click Save.`,
+      `If the Codex app holds the file, add box there instead: Settings -> MCP servers -> Add server, name it ${ctx.name}, choose Streamable HTTP, paste ${ctx.url} as the URL and click Save.`,
       `Restart Codex, then click Authenticate next to ${ctx.name}, sign in in the browser and click Approve.`,
     ]
   },

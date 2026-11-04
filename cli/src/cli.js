@@ -193,8 +193,8 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
       spin.stop(`${client.name}: failed`, 1)
       p.log.error(`  ${err.message}`)
       if (isPermissionError(err)) {
-        const where = err.path ? ` ${err.path}` : ' its config'
-        p.log.warn(`  box could not write${where}: permission denied. The file may belong to another user (for example after a run with sudo) or be locked by the app; check its owner, or quit the app and run again.`)
+        const where = safe(() => client.configLocation(ctx), 'its config')
+        p.log.warn(`  box could not change ${where}: the file or its folder may belong to another user (for example after a run with sudo), or the app may hold it open. Check the owner of both, or quit the app, then run again.`)
         for (const n of client.permissionHelp?.(ctx) || []) next.push(`${client.name}: ${n}`)
       }
     }
@@ -207,9 +207,9 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
   return failed ? 1 : 0
 }
 
-/** EACCES/EPERM from Node, or the same reported as text (add-mcp, Windows "Access is denied"). */
+/** EACCES/EPERM, or EBUSY (Windows: the app holds the file open), including as text ("Access is denied"). */
 export function isPermissionError(err) {
-  return ['EACCES', 'EPERM'].includes(err?.code) || /\bEACCES\b|\bEPERM\b|permission denied|access is denied|operation not permitted/i.test(err?.message || '')
+  return ['EACCES', 'EPERM', 'EBUSY'].includes(err?.code) || /\bEACCES\b|\bEPERM\b|\bEBUSY\b|permission denied|access is denied|operation not permitted/i.test(err?.message || '')
 }
 
 async function remove(ctx, flags, { interactive }) {
