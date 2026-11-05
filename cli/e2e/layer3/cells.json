@@ -6,7 +6,7 @@
     "auth": "oauth",
     "environment": "clean",
     "reset": [
-      "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; true",
+      "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; pkill -x chrome >/dev/null 2>&1; true",
       "npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1 || sudo npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1",
       "for s in user local project; do claude mcp remove box -s $s >/dev/null 2>&1; done; true",
       "grep -q '^export ENABLE_CLAUDEAI_MCP_SERVERS=false$' ~/.bashrc || echo 'export ENABLE_CLAUDEAI_MCP_SERVERS=false' >> ~/.bashrc",
@@ -23,7 +23,7 @@
     "auth": "claude.ai-connector",
     "environment": "claude.ai account already has the box connector",
     "reset": [
-      "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; true",
+      "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; pkill -x chrome >/dev/null 2>&1; true",
       "npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1 || sudo npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1",
       "for s in user local project; do claude mcp remove box -s $s >/dev/null 2>&1; done; true",
       "sed -i '/^export ENABLE_CLAUDEAI_MCP_SERVERS=false$/d' ~/.bashrc",
