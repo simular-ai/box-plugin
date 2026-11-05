@@ -1,6 +1,6 @@
 # Layer 3: agent-driven onboarding runs
 
-Status: design, nothing built. Tracks [simular-ai/box-plugin#11](https://github.com/simular-ai/box-plugin/issues/11).
+Status: first cell built (`run.mjs`, `cells.json`, `driver.md`, `judge.md`), not yet run live. Tracks [simular-ai/box-plugin#11](https://github.com/simular-ai/box-plugin/issues/11).
 
 ## Goal
 
@@ -44,7 +44,11 @@ If the driver breaks a rule to get past a problem, it must say so in a step note
 
 ## Recording
 
-The recording must not depend on the driver remembering to take notes. The driver reaches the box MCP server through a recording proxy. The proxy writes every tool call, its arguments, its result and every screenshot into the run folder. The driver's own notes ("I clicked Login because...") come from its transcript.
+The recording must not depend on the driver remembering to take notes. The driver is a headless `claude -p` session with `--output-format stream-json`, which writes every tool call, its arguments, its result and every screenshot to `transcript.jsonl`. `extract.mjs` turns that into `steps.jsonl` and `screenshots/`. The driver's notes ("I clicked Login because...") are the text it writes before each call.
+
+The driver rules are enforced by the CLI, not only by the prompt. `--tools ""` removes every built-in tool, `--strict-mcp-config` loads only the box server, `--allowedTools` allows only `screenshot`, `computer_act` and `computer_state`, and `--disallowedTools` denies every other box tool. A denied attempt still shows in the transcript, so the judge sees it.
+
+Runs are written to `~/.box-layer3/runs/` (or `LAYER3_RUNS_DIR`), outside the repo, because they show the test account's screen.
 
 ### Run folder
 
@@ -146,5 +150,6 @@ After that, in order:
 1. **One box or two.** The machine under test and the box under test both belong to the test account. If an account can have only one box, the client's first tool call acts on the same box the driver is using. Do we allow a second box for the test account, or accept a first task that only reads (for example, a screenshot)?
 2. **Where the driver runs.** A local Claude Code session for the first run. For nightly runs, a GitHub workflow or the Mac mini. A GitHub workflow needs a box key or OAuth token as a secret.
 3. **Pass rate.** One run is a sample. How many runs per cell per night, and what pass rate counts as green?
-4. **Recording proxy.** Build a small MCP proxy, or rely on the driver's transcript, which already holds each tool call and screenshot? The transcript is simpler but ties the format to Claude Code.
-5. **Sign-in.** Does Google sign-in accept a computer-use driver on a real Chrome window, or does the profile need signing in by hand once and saving into the snapshot?
+4. **Grant cleanup.** Step 7 needs a way to revoke the run's grant. There is no API for it from the harness yet, so runs leave grants behind on the test account.
+5. **Funnel.** `funnel.json` is not collected yet. The judge decides from screenshots until box api exposes the funnel per run.
+6. **Sign-in.** Does Google sign-in accept a computer-use driver on a real Chrome window, or does the profile need signing in by hand once and saving into the snapshot?

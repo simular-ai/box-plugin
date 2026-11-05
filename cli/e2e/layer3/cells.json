@@ -1,0 +1,18 @@
+{
+  "//": "Layer 3 cells. Each is one onboarding a new user might do. reset runs on the box over its shell tool before the driver starts; precheck must print OK or the run is blocked.",
+  "claude-code-landing": {
+    "entry": "landing-line",
+    "client": "claude-code",
+    "auth": "oauth",
+    "environment": "clean",
+    "reset": [
+      "npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1 || sudo npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1",
+      "for s in user local project; do claude mcp remove box -s $s >/dev/null 2>&1; done; true",
+      "claude --version"
+    ],
+    "precheck": "test -s ~/.claude/.credentials.json && ! claude mcp list 2>/dev/null | grep -q '^box' && echo OK",
+    "precheckHelp": "Sign Claude Code in on the box once by hand (open a terminal on the box, run claude, finish /login). The run keeps that sign-in and removes only box's MCP entry.",
+    "handover": "You use Claude Code in a terminal on this computer. You found box by Simular and the landing page told you to paste this into your agent:\n\n  Set up box from https://box.simular.ai/install",
+    "task": "Once box is set up, ask Claude Code to use box to take a screenshot of the box and describe what is on it."
+  }
+}

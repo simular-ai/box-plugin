@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "reasons", "workarounds", "improvements"],
+  "properties": {
+    "verdict": { "enum": ["pass", "fail", "blocked"] },
+    "reasons": { "type": "array", "items": { "$ref": "#/$defs/cited" } },
+    "workarounds": { "type": "array", "items": { "$ref": "#/$defs/cited" } },
+    "improvements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "title", "detail", "steps", "proposed"],
+        "properties": {
+          "target": { "enum": ["install.md", "portal", "cli", "client-docs", "harness"] },
+          "title": { "type": "string" },
+          "detail": { "type": "string" },
+          "steps": { "type": "array", "items": { "type": "integer" } },
+          "proposed": { "enum": ["issue", "draft-pr"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "cited": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "steps"],
+      "properties": {
+        "text": { "type": "string" },
+        "steps": { "type": "array", "items": { "type": "integer" } }
+      }
+    }
+  }
+}
