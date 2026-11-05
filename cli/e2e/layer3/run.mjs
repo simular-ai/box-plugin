@@ -1,5 +1,6 @@
 // Layer 3: an agent plays a new user onboarding box on a box, then a separate judge reviews the recording.
-//   BOX_TOKEN=cb_... node e2e/layer3/run.mjs <cell>            reset, drive, extract, judge
+//   node e2e/layer3/run.mjs <cell>                               reset, drive, extract, judge
+//     BOX_TOKEN comes from the environment or e2e/layer3/.env (see .env.example).
 //   node e2e/layer3/run.mjs --judge <runDir>                     judge an existing run again
 // Needs a signed-in `claude` CLI on this machine. Recordings hold the test account's screen, so they
 // are written outside the repo (LAYER3_RUNS_DIR, default ~/.box-layer3/runs) and never committed.
@@ -13,6 +14,7 @@ import { connectMcp } from '../mcp-client.mjs'
 import { extractRun } from './extract.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
+if (fs.existsSync(path.join(HERE, '.env'))) process.loadEnvFile(path.join(HERE, '.env'))
 const SERVER = 'box'
 const DRIVER_TOOLS = ['screenshot', 'computer_act', 'computer_state']
 const read = (f) => fs.readFileSync(path.join(HERE, f), 'utf8')
@@ -36,7 +38,7 @@ async function drive(cellName) {
   const cell = cells[cellName]
   if (!cell) throw new Error(`unknown cell "${cellName}". Cells: ${Object.keys(cells).filter((k) => k !== '//').join(', ')}`)
   const key = process.env.BOX_TOKEN
-  if (!key) throw new Error('set BOX_TOKEN to a box key for the test account (https://box.simular.ai/keys)')
+  if (!key) throw new Error(`set BOX_TOKEN in ${path.join(HERE, '.env')} to a box key for the test account (https://box.simular.ai/keys)`)
   const url = process.env.BOX_MCP_URL || DEFAULT_MCP_URL
 
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${cellName}`
