@@ -5,7 +5,7 @@ The run folder is `{{runDir}}`. Read, in this order:
 1. `run.json` for the cell, the client version, what the driver was handed, and the driver's own claim.
 2. `steps.jsonl`, one line per driver action, with the driver's note, the tool input, a result summary and the screenshot file.
 3. The screenshots the steps point to. Look at them. The driver's notes can be wrong.
-4. `funnel.json` if it exists, for what the box server saw. If it is missing, judge from the screenshots alone and say so in a reason.
+4. `funnel.json` if it exists, for what the box server saw: whether the user approved a grant for the client during the run, and whether that grant's token was used. It cannot show which tool was called, so a screenshot must still show the task's result. If the funnel says no grant was approved but the screenshots show box working, say so: the client may have used a connection that existed before the run. If the file is missing, judge from the screenshots alone and say so in a reason.
 
 Do not trust the driver's claim. Verify every part of it against the screenshots.
 

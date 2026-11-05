@@ -147,9 +147,8 @@ After that, in order:
 
 ## Open questions
 
-1. **One box or two.** The machine under test and the box under test both belong to the test account. If an account can have only one box, the client's first tool call acts on the same box the driver is using. Do we allow a second box for the test account, or accept a first task that only reads (for example, a screenshot)?
+1. **One box or two.** Settled for now: the client under test reaches the same box the driver is using (run 1 described its own terminal). A read-only first task, a screenshot, is safe on one box.
 2. **Where the driver runs.** A local Claude Code session for the first run. For nightly runs, a GitHub workflow or the Mac mini. A GitHub workflow needs a box key or OAuth token as a secret.
 3. **Pass rate.** One run is a sample. How many runs per cell per night, and what pass rate counts as green?
-4. **Grant cleanup.** Step 7 needs a way to revoke the run's grant. There is no API for it from the harness yet, so runs leave grants behind on the test account.
-5. **Funnel.** `funnel.json` is not collected yet. The judge decides from screenshots until box api exposes the funnel per run.
-6. **Sign-in.** Does Google sign-in accept a computer-use driver on a real Chrome window, or does the profile need signing in by hand once and saving into the snapshot?
+4. **Which tool was called.** `funnel.json` comes from `Grants.List`: approval time and first token use. box api does not expose token exchange or `tools/call` per grant yet, so the screenshots still decide whether the task ran.
+5. **Sign-in.** Settled for now: the box's Chrome is signed in to the test account once by hand, and the consent page then needs one click. box has no way to fill a web password without the agent seeing it.

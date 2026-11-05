@@ -2,6 +2,7 @@
 //   node e2e/layer3/run.mjs <cell>                               reset, drive, extract, judge
 //     BOX_TOKEN comes from the environment or e2e/layer3/.env (see .env.example).
 //   node e2e/layer3/run.mjs --judge <runDir>                     judge an existing run again
+//   --no-file                                                    skip filing issues with gh
 // Needs a signed-in `claude` CLI on this machine. Recordings hold the test account's screen, so they
 // are written outside the repo (LAYER3_RUNS_DIR, default ~/.box-layer3/runs) and never committed.
 import fs from 'node:fs'
@@ -12,6 +13,9 @@ import spawn from 'cross-spawn'
 import { DEFAULT_MCP_URL } from '../../src/constants.js'
 import { connectMcp } from '../mcp-client.mjs'
 import { extractRun } from './extract.mjs'
+import { fileRun } from './file.mjs'
+import { funnelFrom, liveGrantsOf, runGrants } from './funnel.mjs'
+import { listGrants, revokeGrant } from './grants.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 if (fs.existsSync(path.join(HERE, '.env'))) process.loadEnvFile(path.join(HERE, '.env'))
@@ -55,6 +59,8 @@ async function drive(cellName) {
   const toolNames = (await mcp.listTools()).map((t) => t.name)
   const missing = [...DRIVER_TOOLS, 'shell'].filter((t) => !toolNames.includes(t))
   if (missing.length) return finish({ blocked: `box MCP server lacks tools: ${missing.join(', ')}` })
+  const held = liveGrantsOf(await listGrants(key), cell.client, Date.now())
+  if (held.length) return finish({ blocked: `the test account already holds a live ${cell.client} grant (${held.map((g) => g.id).join(', ')}). Approving again would renew it instead of creating one, so the run could not tell its own consent apart. Revoke it at https://box.simular.ai/keys, then run again.` })
 
   const log = []
   for (const command of [...cell.reset, cell.precheck]) {
@@ -88,7 +94,17 @@ async function drive(cellName) {
   if (res.stderr) fs.writeFileSync(path.join(runDir, 'driver.stderr'), res.stderr.split(key).join('***'))
 
   const { steps, final } = extractRun(runDir)
-  return finish({ driver: { exit: res.status, model: process.env.LAYER3_DRIVER_MODEL || 'default', steps: steps.length, ...final } })
+  run.driver = { exit: res.status, model: process.env.LAYER3_DRIVER_MODEL || 'default', steps: steps.length, ...final }
+
+  const mine = runGrants(await listGrants(key), { client: cell.client, startedAtMs: Date.parse(run.startedAt), endedAtMs: Date.now() })
+  writeJson(runDir, 'funnel.json', funnelFrom(mine))
+  run.funnel = 'funnel.json'
+  run.revoked = []
+  for (const g of mine) {
+    await revokeGrant(key, g.id)
+    run.revoked.push(g.id)
+  }
+  return finish({})
 }
 
 function judge(runDir) {
@@ -117,9 +133,12 @@ function judge(runDir) {
 }
 
 const argv = process.argv.slice(2)
-const runDir = argv[0] === '--judge' ? path.resolve(argv[1]) : await drive(argv[0] || 'claude-code-landing')
+const noFile = argv.includes('--no-file')
+const args = argv.filter((a) => a !== '--no-file')
+const runDir = args[0] === '--judge' ? path.resolve(args[1]) : await drive(args[0] || 'claude-code-landing')
 const verdict = judge(runDir)
 console.log(`${verdict.verdict.toUpperCase()}  ${runDir}`)
 for (const r of verdict.reasons) console.log(`  - ${r.text} (steps ${r.steps.join(', ') || 'none'})`)
-for (const imp of verdict.improvements) console.log(`  * [${imp.target}] ${imp.title}`)
+if (noFile) for (const imp of verdict.improvements) console.log(`  * [${imp.target}] ${imp.title}`)
+else for (const r of fileRun(runDir)) console.log(`  * ${r.action} [${r.target}] ${r.title}${r.issue ? `  -> ${r.repo}#${r.issue}` : ''}${r.url ? `  -> ${r.url}` : ''}${r.why ? `  (${r.why})` : ''}`)
 process.exitCode = verdict.verdict === 'pass' ? 0 : verdict.verdict === 'blocked' ? 2 : 1
