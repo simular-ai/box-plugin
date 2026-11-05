@@ -2,7 +2,8 @@
 // A fake box packer for tests: the `cocoonbox-agent offload` verbs as contracts.md "Offload" states them, with the box
 // copy under $FAKE_BOX_WORKSPACE and the inbox and outbox as files under $FAKE_BOX_STATE. It does what the CLI depends
 // on (begin's refs, send's tar stream with the bundle indexed by `git index-pack --fix-thin`, read, end) and no CLI
-// session: a test plays the box agent by committing in the copy and posting `back` with FAKE_POST.
+// session: a test plays the box agent by committing in the copy and posting `back` with FAKE_POST. FAKE_BOX_LEGACY plays
+// an image before simular-ai/box#78, which checks the snapshot only under refs/cocoonbox/offload/<id>.
 import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -103,6 +104,10 @@ switch (verb) {
         const [oid, ref] = line.split(' ')
         if (ref && ref.startsWith('refs/')) execFileSync('git', ['-C', dir, 'update-ref', ref, oid])
       }
+    }
+    const snapshot = `refs/${process.env.FAKE_BOX_LEGACY ? 'cocoonbox' : 'box'}/offload/${opt('--id')}`
+    if (spawnSync('git', ['-C', dir, 'rev-parse', '-q', '--verify', `${snapshot}^{tree}`]).status !== 0) {
+      reply({ ok: false, code: 'failed', error: `${snapshot} is missing from the copy` }, 1)
     }
     execFileSync('git', ['-C', dir, 'update-index', '-q', '--refresh'], { stdio: 'ignore' })
     save('session', { ...session, started: true })
