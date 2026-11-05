@@ -14,12 +14,16 @@ Problems found while building and running layer 3, before the judge files issues
 | 14 | After `/exit` and relaunch, Claude Code asked to trust `/home/user` again, although it had been trusted minutes earlier. Possibly upstream Claude Code behaviour, not yet confirmed. | client-docs | same run, step 12; also run `06-23-49`, step 9 |
 | 4 | Fetching the install URL, Claude Code's first probe showed a red "Exit code 127" next to the HTTP 200 headers. It recovered, but a new user sees an error on the first step. | install.md | run `2026-11-05T06-20-57-248Z-claude-code-landing`, step 5 |
 
+Filed in simular-ai/box-portal (private): #1 as box-portal#146, #2 and #2a as box-portal#147, #3 as box-portal#148, #4 as box-portal#149, #13 as box-portal#150. #14 is not filed until it is confirmed.
+
 ## box platform
 
 | # | Finding | Target | Source |
 |---|---|---|---|
 | 5 | No vault or secret filling. box has no way to store a password or secret and fill it into a page without the agent seeing the value. Sign-in for tests relies on a Chrome profile signed in once by hand. | box | box docs (`/llms-full.txt`) and box's MCP tool list, 2026-11-05 |
 | 6 | Copy and paste don't work in the screen view at box.simular.ai/box. | portal | reported by hand while signing the box's Chrome in, 2026-11-05 |
+
+#5 is covered by box-portal#72 (sign in to sites in the box without leaving the app). #6 is not filed yet.
 
 ## Harness
 
