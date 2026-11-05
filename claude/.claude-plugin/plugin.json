@@ -8,6 +8,7 @@
     "url": "https://simular.ai"
   },
   "homepage": "https://box.simular.ai",
+  "privacyPolicyUrl": "https://www.simular.ai/product-sai/privacy",
   "repository": "https://github.com/simular-ai/box-plugin",
   "license": "MIT",
   "keywords": ["computer-use", "browser-automation", "desktop-automation", "cloud-computer", "mcp"]
