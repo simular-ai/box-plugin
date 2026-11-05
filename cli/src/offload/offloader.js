@@ -90,7 +90,7 @@ export class Offloader {
       if (!dir) throw new OffloadError('failed', 'begin named no directory')
       if (Array.isArray(begin.ignored) && begin.ignored.length) fs.appendFileSync(excludes, begin.ignored.map((p) => '/' + escape(p) + '\n').join(''))
 
-      refs.push(`refs/cocoonbox/offload/${id}`, `refs/cocoonbox/index/${id}`)
+      refs.push(`refs/box/offload/${id}`, `refs/box/index/${id}`)
       const record = {
         id, repo: key, box: this.box.id, box_name: this.box.name, name, dir, kind, base: null, top: repo.top,
         started_at_ms: Date.now(), seen: 0,
@@ -279,8 +279,8 @@ export class Offloader {
     if (record.base && record.top) {
       const repo = GitRepo.open(record.top, this.env)
       if (!repo) throw new OffloadError('failed', `${record.top} is no longer a git repository`)
-      const ref = `refs/cocoonbox/back/${record.id}`
-      const fetch = await repo.runAsync(['fetch', '-q', `box:${record.dir}`, '+refs/heads/*:refs/cocoonbox/box/*', `+${ref}:${ref}`], {
+      const ref = `refs/box/back/${record.id}`
+      const fetch = await repo.runAsync(['fetch', '-q', `box:${record.dir}`, '+refs/heads/*:refs/box/box/*', `+${ref}:${ref}`], {
         extra: { GIT_SSH_COMMAND: this.rsh, GIT_SSH_VARIANT: 'simple', BOX_ENDPOINT: this.rshEnv.BOX_ENDPOINT, BOX_TOKEN: this.rshEnv.BOX_TOKEN },
       })
       if (fetch.status !== 0) throw new OffloadError('failed', `git fetch from the box failed (${fetch.status}):\n${fetch.error}`)

@@ -52,7 +52,7 @@ function playBoxAgent({ dir, offload_id: id, repo: key }, change) {
   git(dir, 'commit', '-qm', 'box work')
   const tree = git(dir, 'rev-parse', 'HEAD^{tree}')
   const snap = git(dir, 'commit-tree', tree, '-p', 'HEAD', '-m', 'back')
-  git(dir, 'update-ref', `refs/cocoonbox/back/${id}`, snap)
+  git(dir, 'update-ref', `refs/box/back/${id}`, snap)
   const outbox = path.join(tmp, 'state', `${key}.outbox.json`)
   const entries = fs.existsSync(outbox) ? JSON.parse(fs.readFileSync(outbox, 'utf8')) : []
   entries.push({ seq: entries.length + 1, kind: 'back', offload_id: id, cli: 'claude', time_ms: Date.now(), body: handover('done in the box') })
@@ -141,7 +141,7 @@ test('offload warns, then moves the task; back fast-forwards the box commits', {
   assert.ok(!fs.existsSync(path.join(copy, '.env')), 'ignored files stay here')
   assert.ok(!fs.existsSync(path.join(copy, 'node_modules')))
   // the bundle carried history and S
-  assert.equal(git(copy, 'rev-parse', `refs/cocoonbox/offload/${r.offload_id}`), git(repo, 'rev-parse', `refs/cocoonbox/offload/${r.offload_id}`))
+  assert.equal(git(copy, 'rev-parse', `refs/box/offload/${r.offload_id}`), git(repo, 'rev-parse', `refs/box/offload/${r.offload_id}`))
   assert.equal(git(copy, 'rev-parse', 'HEAD'), git(repo, 'rev-parse', 'HEAD'))
   assert.equal(fs.readFileSync(path.join(tmp, 'state', `${r.repo}.handover.md`), 'utf8'), handover('finish the thing'))
   const envJson = JSON.parse(fs.readFileSync(path.join(tmp, 'state', `${r.repo}.env.json`), 'utf8'))
@@ -195,7 +195,7 @@ test('back applies a clean merge uncommitted when the user worked meanwhile, els
   fs.writeFileSync(path.join(repo, 'a.txt'), 'mine\n')
   playBoxAgent(third, { 'a.txt': 'theirs\n' })
   const conflict = JSON.parse((await cli(['back', '--json'], { cwd: repo })).text)
-  assert.match(conflict.landing, /^conflict: the box's work is on the branch cocoonbox\/back-/)
+  assert.match(conflict.landing, /^conflict: the box's work is on the branch box\/back-/)
   assert.equal(fs.readFileSync(path.join(repo, 'a.txt'), 'utf8'), 'mine\n', 'the work tree is untouched')
 })
 
