@@ -3,9 +3,9 @@ import test from 'node:test'
 import { funnelFrom, liveGrantsOf, runGrants } from '../e2e/layer3/funnel.mjs'
 
 const grant = (id, clientName, createdAtMs, usedAtMs = 0) => ({ id, clientName, clientHost: '', createdAtMs, usedAtMs, maxBoxes: 2, boxIds: [] })
-const window = { client: 'claude-code', startedAtMs: 1000, endedAtMs: 2000 }
+const window = { app: 'claude-code-cli', startedAtMs: 1000, endedAtMs: 2000 }
 
-test('only grants the cell client created inside the run window belong to the run', () => {
+test('only grants the cell app created inside the run window belong to the run', () => {
   const grants = [
     grant('oag_before', 'Claude Code', 500, 1500),
     grant('oag_connector', 'Claude', 1200, 1300),
@@ -15,9 +15,9 @@ test('only grants the cell client created inside the run window belong to the ru
   assert.deepEqual(runGrants(grants, window).map((g) => g.id), ['oag_run'])
 })
 
-test('a live grant the cell client already holds is found, an expired one or another client is not', () => {
+test('a live grant the cell app already holds is found, an expired one or another client is not', () => {
   const grants = [{ ...grant('oag_live', 'Claude Code', 100), expiresAtMs: 9000 }, { ...grant('oag_old', 'Claude Code', 100), expiresAtMs: 500 }, { ...grant('oag_web', 'Claude', 100), expiresAtMs: 9000 }]
-  assert.deepEqual(liveGrantsOf(grants, 'claude-code', 1000).map((g) => g.id), ['oag_live'])
+  assert.deepEqual(liveGrantsOf(grants, 'claude-code-cli', 1000).map((g) => g.id), ['oag_live'])
 })
 
 test('the funnel reports approval and first use from the run grants', () => {

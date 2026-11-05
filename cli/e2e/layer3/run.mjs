@@ -1,5 +1,5 @@
 // Layer 3: an agent plays a new user onboarding box on a box, then a separate judge reviews the recording.
-//   node e2e/layer3/run.mjs <cell>                               reset, drive, extract, judge
+//   node e2e/layer3/run.mjs <cell>      reset, drive, extract, judge, file; cell is app/setup/alreadySetUp
 //     BOX_TOKEN comes from the environment or e2e/layer3/.env (see .env.example).
 //   node e2e/layer3/run.mjs --judge <runDir>                     judge an existing run again
 //   --no-file                                                    skip filing issues with gh
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import spawn from 'cross-spawn'
 import { DEFAULT_MCP_URL } from '../../src/constants.js'
 import { connectMcp } from '../mcp-client.mjs'
+import { loadCells } from './cells.mjs'
 import { extractRun } from './extract.mjs'
 import { fileRun } from './file.mjs'
 import { funnelFrom, liveGrantsOf, runGrants } from './funnel.mjs'
@@ -38,17 +39,17 @@ function textOf(result) {
 }
 
 async function drive(cellName) {
-  const cells = JSON.parse(read('cells.json'))
-  const cell = cells[cellName]
-  if (!cell) throw new Error(`unknown cell "${cellName}". Cells: ${Object.keys(cells).filter((k) => k !== '//').join(', ')}`)
+  const cells = loadCells()
+  const cell = cells.get(cellName)
+  if (!cell) throw new Error(`unknown cell "${cellName}". Cells:\n  ${[...cells.keys()].join('\n  ')}`)
   const key = process.env.BOX_TOKEN
   if (!key) throw new Error(`set BOX_TOKEN in ${path.join(HERE, '.env')} to a box key for the test account (https://box.simular.ai/keys)`)
   const url = process.env.BOX_MCP_URL || DEFAULT_MCP_URL
 
-  const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${cellName}`
+  const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${cellName.replaceAll('/', '--')}`
   const runDir = path.join(process.env.LAYER3_RUNS_DIR || path.join(os.homedir(), '.box-layer3', 'runs'), runId)
   fs.mkdirSync(runDir, { recursive: true })
-  const run = { runId, cell: { name: cellName, ...cell }, mcpUrl: url, account: process.env.LAYER3_ACCOUNT || 'test-account', startedAt: new Date().toISOString(), funnel: 'unavailable' }
+  const run = { runId, cell, mcpUrl: url, account: process.env.LAYER3_ACCOUNT || 'test-account', startedAt: new Date().toISOString(), funnel: 'unavailable' }
   const finish = (extra) => {
     Object.assign(run, extra, { endedAt: new Date().toISOString() })
     writeJson(runDir, 'run.json', run)
@@ -59,8 +60,8 @@ async function drive(cellName) {
   const toolNames = (await mcp.listTools()).map((t) => t.name)
   const missing = [...DRIVER_TOOLS, 'shell'].filter((t) => !toolNames.includes(t))
   if (missing.length) return finish({ blocked: `box MCP server lacks tools: ${missing.join(', ')}` })
-  const held = liveGrantsOf(await listGrants(key), cell.client, Date.now())
-  if (held.length) return finish({ blocked: `the test account already holds a live ${cell.client} grant (${held.map((g) => g.id).join(', ')}). Approving again would renew it instead of creating one, so the run could not tell its own consent apart. Revoke it at https://box.simular.ai/keys, then run again.` })
+  const held = liveGrantsOf(await listGrants(key), cell.app, Date.now())
+  if (held.length) return finish({ blocked: `the test account already holds a live ${cell.app} grant (${held.map((g) => g.id).join(', ')}). Approving again would renew it instead of creating one, so the run could not tell its own consent apart. Revoke it at https://box.simular.ai/keys, then run again.` })
 
   const log = []
   for (const command of [...cell.reset, cell.precheck]) {
@@ -87,7 +88,7 @@ async function drive(cellName) {
     '--no-session-persistence',
     ...(process.env.LAYER3_DRIVER_MODEL ? ['--model', process.env.LAYER3_DRIVER_MODEL] : []),
   ]
-  console.log(`driving ${cellName} on ${url} (recording to ${runDir})`)
+  console.log(`driving ${cell.title}\n  cell ${cellName} on ${url} (recording to ${runDir})`)
   const transcript = path.join(runDir, 'transcript.jsonl')
   const res = claude(driverArgs, { cwd: runDir, env: { ...process.env, BOX_TOKEN: key }, stdoutFile: transcript })
   fs.writeFileSync(transcript, fs.readFileSync(transcript, 'utf8').split(key).join('***'))
@@ -96,7 +97,7 @@ async function drive(cellName) {
   const { steps, final } = extractRun(runDir)
   run.driver = { exit: res.status, model: process.env.LAYER3_DRIVER_MODEL || 'default', steps: steps.length, ...final }
 
-  const mine = runGrants(await listGrants(key), { client: cell.client, startedAtMs: Date.parse(run.startedAt), endedAtMs: Date.now() })
+  const mine = runGrants(await listGrants(key), { app: cell.app, startedAtMs: Date.parse(run.startedAt), endedAtMs: Date.now() })
   writeJson(runDir, 'funnel.json', funnelFrom(mine))
   run.funnel = 'funnel.json'
   run.revoked = []
@@ -135,7 +136,7 @@ function judge(runDir) {
 const argv = process.argv.slice(2)
 const noFile = argv.includes('--no-file')
 const args = argv.filter((a) => a !== '--no-file')
-const runDir = args[0] === '--judge' ? path.resolve(args[1]) : await drive(args[0] || 'claude-code-landing')
+const runDir = args[0] === '--judge' ? path.resolve(args[1]) : await drive(args[0] || 'claude-code-cli/paste-landing-line/nothing')
 const verdict = judge(runDir)
 console.log(`${verdict.verdict.toUpperCase()}  ${runDir}`)
 for (const r of verdict.reasons) console.log(`  - ${r.text} (steps ${r.steps.join(', ') || 'none'})`)

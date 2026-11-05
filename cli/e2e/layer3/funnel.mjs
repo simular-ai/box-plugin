@@ -1,18 +1,18 @@
 // Server-side evidence for a run, from the test account's OAuth grants, and the run's cleanup.
-// A grant belongs to the run when it was created inside the run's window by the cell's client, so a
-// grant the account held before the run (another app, a claude.ai connector) is never touched.
+// A grant belongs to the run when the cell's app created it inside the run's window, so a grant the
+// account held before the run (another app, a claude.ai connector) is never touched.
+import { APPS } from './cells.mjs'
 
-/** Clients by the name their OAuth metadata gives box's consent page. */
-const CLIENT_NAMES = { 'claude-code': ['Claude Code'] }
+const namesOf = (app) => APPS[app]?.names || []
 
-export function runGrants(grants, { client, startedAtMs, endedAtMs }) {
-  const names = CLIENT_NAMES[client]
-  return grants.filter((g) => g.createdAtMs >= startedAtMs && g.createdAtMs <= endedAtMs && (!names || names.includes(g.clientName)))
+export function runGrants(grants, { app, startedAtMs, endedAtMs }) {
+  const names = namesOf(app)
+  return grants.filter((g) => g.createdAtMs >= startedAtMs && g.createdAtMs <= endedAtMs && names.includes(g.clientName))
 }
 
-/** Live grants the cell's client already holds. Consent renews such a grant instead of creating one. */
-export function liveGrantsOf(grants, client, nowMs) {
-  const names = CLIENT_NAMES[client] || []
+/** Live grants the cell's app already holds. Allowing again renews such a grant instead of creating one. */
+export function liveGrantsOf(grants, app, nowMs) {
+  const names = namesOf(app)
   return grants.filter((g) => names.includes(g.clientName) && (!g.expiresAtMs || g.expiresAtMs > nowMs))
 }
 

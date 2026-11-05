@@ -1,37 +1,39 @@
 {
-  "//": "Layer 3 cells. Each is one onboarding a new user might do. reset runs on the box over its shell tool before the driver starts; precheck must print OK or the run is blocked. Claude Code on the box loads the signed-in claude.ai account's connectors, so a clean cell turns them off with ENABLE_CLAUDEAI_MCP_SERVERS=false in ~/.bashrc.",
-  "claude-code-landing": {
-    "entry": "landing-line",
-    "client": "claude-code",
-    "auth": "oauth",
-    "environment": "clean",
-    "reset": [
-      "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; pkill -x chrome >/dev/null 2>&1; true",
-      "npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1 || sudo npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1",
-      "for s in user local project; do claude mcp remove box -s $s >/dev/null 2>&1; done; true",
-      "grep -q '^export ENABLE_CLAUDEAI_MCP_SERVERS=false$' ~/.bashrc || echo 'export ENABLE_CLAUDEAI_MCP_SERVERS=false' >> ~/.bashrc",
-      "claude --version"
-    ],
-    "precheck": "cd ~ && test -s ~/.claude/.credentials.json && grep -q '^export ENABLE_CLAUDEAI_MCP_SERVERS=false$' ~/.bashrc && ! ENABLE_CLAUDEAI_MCP_SERVERS=false claude mcp list 2>/dev/null | grep -q 'mcp.box.simular.ai' && echo OK",
-    "precheckHelp": "Sign Claude Code in on the box once by hand (open a terminal on the box, run claude, finish /login). The run keeps that sign-in, turns off claude.ai connectors, and removes any local box MCP entry.",
-    "handover": "You use Claude Code in a terminal on this computer. You found box by Simular and the landing page told you to paste this into your agent:\n\n  Set up box from https://box.simular.ai/install",
-    "task": "Once box is set up, ask Claude Code to use box to take a screenshot of the box and describe what is on it."
-  },
-  "claude-code-landing-connector": {
-    "entry": "landing-line",
-    "client": "claude-code",
-    "auth": "claude.ai-connector",
-    "environment": "claude.ai account already has the box connector",
-    "reset": [
-      "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; pkill -x chrome >/dev/null 2>&1; true",
-      "npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1 || sudo npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1",
-      "for s in user local project; do claude mcp remove box -s $s >/dev/null 2>&1; done; true",
-      "sed -i '/^export ENABLE_CLAUDEAI_MCP_SERVERS=false$/d' ~/.bashrc",
-      "claude --version"
-    ],
-    "precheck": "cd ~ && test -s ~/.claude/.credentials.json && claude mcp list 2>/dev/null | grep -q '^claude.ai .*mcp.box.simular.ai.*Connected' && echo OK",
-    "precheckHelp": "Sign Claude Code in on the box with a claude.ai account that has the box by Simular connector.",
-    "handover": "You use Claude Code in a terminal on this computer. You found box by Simular and the landing page told you to paste this into your agent:\n\n  Set up box from https://box.simular.ai/install",
-    "task": "Once box is set up, ask Claude Code to use box to take a screenshot of the box and describe what is on it."
-  }
+  "//": "Layer 3 cells. A cell's name is app/setup/alreadySetUp; the allowed values and what they mean are in cells.mjs. reset runs on the box over its shell tool before the driver starts, and precheck must print OK or the run is blocked. Claude Code on the box loads the signed-in claude.ai account's connectors, so a cell with nothing set up turns them off with ENABLE_CLAUDEAI_MCP_SERVERS=false in ~/.bashrc.",
+  "cells": [
+    {
+      "app": "claude-code-cli",
+      "setup": "paste-landing-line",
+      "alreadySetUp": "nothing",
+      "title": "Claude Code CLI: a new user pastes the landing line, with nothing set up yet",
+      "reset": [
+        "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; pkill -x chrome >/dev/null 2>&1; true",
+        "npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1 || sudo npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1",
+        "for s in user local project; do claude mcp remove box -s $s >/dev/null 2>&1; done; true",
+        "grep -q '^export ENABLE_CLAUDEAI_MCP_SERVERS=false$' ~/.bashrc || echo 'export ENABLE_CLAUDEAI_MCP_SERVERS=false' >> ~/.bashrc",
+        "claude --version"
+      ],
+      "precheck": "cd ~ && test -s ~/.claude/.credentials.json && grep -q '^export ENABLE_CLAUDEAI_MCP_SERVERS=false$' ~/.bashrc && ! ENABLE_CLAUDEAI_MCP_SERVERS=false claude mcp list 2>/dev/null | grep -q 'mcp.box.simular.ai' && echo OK",
+      "precheckHelp": "Sign Claude Code in on the box once by hand (open a terminal on the box, run claude, finish /login). The run keeps that sign-in, turns off claude.ai connectors, and removes any local box MCP entry.",
+      "handover": "You use Claude Code in a terminal on this computer. You found box by Simular and the landing page told you to paste this into your agent:\n\n  Set up box from https://box.simular.ai/install",
+      "task": "Once box is set up, ask Claude Code to use box to take a screenshot of the box and describe what is on it."
+    },
+    {
+      "app": "claude-code-cli",
+      "setup": "paste-landing-line",
+      "alreadySetUp": "claude-ai-connector",
+      "title": "Claude Code CLI: the user pastes the landing line, but their claude.ai account already has the box connector",
+      "reset": [
+        "pkill -x claude >/dev/null 2>&1; pkill -x xfce4-terminal >/dev/null 2>&1; pkill -x chrome >/dev/null 2>&1; true",
+        "npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1 || sudo npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1",
+        "for s in user local project; do claude mcp remove box -s $s >/dev/null 2>&1; done; true",
+        "sed -i '/^export ENABLE_CLAUDEAI_MCP_SERVERS=false$/d' ~/.bashrc",
+        "claude --version"
+      ],
+      "precheck": "cd ~ && test -s ~/.claude/.credentials.json && claude mcp list 2>/dev/null | grep -q '^claude.ai .*mcp.box.simular.ai.*Connected' && echo OK",
+      "precheckHelp": "Sign Claude Code in on the box with a claude.ai account that has the box by Simular connector.",
+      "handover": "You use Claude Code in a terminal on this computer. You found box by Simular and the landing page told you to paste this into your agent:\n\n  Set up box from https://box.simular.ai/install",
+      "task": "Once box is set up, ask Claude Code to use box to take a screenshot of the box and describe what is on it."
+    }
+  ]
 }

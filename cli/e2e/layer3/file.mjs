@@ -82,7 +82,7 @@ function issueBody(imp, judge, run, evidenceText, { isPrivate }) {
     '',
     '## Where it showed up',
     '',
-    `Run \`${run.runId}\`: cell \`${run.cell.name}\` (${run.cell.client}, ${run.clientVersion || 'version unknown'}, entry ${run.cell.entry}, auth ${run.cell.auth}). Verdict **${judge.verdict}**. Steps ${imp.steps.join(', ')}.`,
+    `${run.cell.title}. Cell \`${run.cell.name}\`, ${run.clientVersion || 'version unknown'}, run \`${run.runId}\`. Verdict **${judge.verdict}**. Steps ${imp.steps.join(', ')}.`,
     ...(reasons.length ? ['', 'Judge:', '', ...reasons] : []),
     '',
     '## Evidence',
@@ -94,7 +94,7 @@ function issueBody(imp, judge, run, evidenceText, { isPrivate }) {
 }
 
 function seenAgainBody(imp, judge, run, evidenceText) {
-  return [`Seen again in run \`${run.runId}\` (${run.cell.name}, ${run.clientVersion || 'version unknown'}, verdict **${judge.verdict}**): ${imp.title}`, '', evidenceText, '', FOOTER].join('\n')
+  return [`Seen again in run \`${run.runId}\`. ${run.cell.title} (cell \`${run.cell.name}\`, ${run.clientVersion || 'version unknown'}, verdict **${judge.verdict}**). ${imp.title}`, '', evidenceText, '', FOOTER].join('\n')
 }
 
 export function fileRun(runDir, { dryRun = false } = {}) {
