@@ -6,7 +6,7 @@
 
 - The box MCP server (`https://mcp.box.simular.ai/mcp`): tools for the shell and files, web pages in Chrome, desktop apps and screenshots, and the box itself (wake, hibernate, save).
 - The box skill, which tells Claude when to use box and which tool to pick.
-- Offload: `/box:offload` hands the current coding task to a fresh agent session in your box, which keeps working while you are away; `/box:back` brings its commits and hand-over home and merges them.
+- Offload: `/box:offload` hands the current coding task to a fresh agent session in your box, which keeps working while you are away; `/box:back` brings its commits and hand-over home and merges them. Each box needs a one-time setup first: [cli/README.md](https://github.com/simular-ai/box-plugin/blob/main/cli/README.md#offload).
 
 ## Install
 
