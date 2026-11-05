@@ -8,6 +8,17 @@
 - The box skill, which tells Claude when to use box and which tool to pick.
 - Offload: `/box:offload` hands the current coding task to a fresh agent session in your box, which keeps working while you are away; `/box:back` brings its commits and hand-over home and merges them.
 
+## Install
+
+In Claude Code:
+
+```
+/plugin marketplace add simular-ai/box-plugin
+/plugin install box@simular-box
+```
+
+Or run `npx @simular-ai/box connect`, which installs it for you.
+
 ## Sign in
 
 You sign in once, in the browser; there is no key to paste. In Claude Code, run `/mcp`, pick the box server and choose Authenticate, then sign in and click Approve. A sleeping box wakes on the first call.
