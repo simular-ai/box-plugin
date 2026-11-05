@@ -19,6 +19,12 @@ export const BACK_RETRY_S = 60
 // How often back polls the box CLI's status while it waits for it to go idle before asking for the hand-over.
 export const IDLE_POLL_MS = 2000
 
+// Box images before simular-ai/box#78 only know the pre-rename refs: they check the snapshot under
+// refs/cocoonbox/offload/<id> and write the back commit under refs/cocoonbox/back/<id>. Boxes keep their image until the
+// user upgrades it, so offload also sends the snapshot under the old name (dropped here once sent) and back falls back to
+// the old back ref. Newer images take refs/box/ first and ignore the rest.
+const legacyRef = (kind, id) => `refs/cocoonbox/${kind}/${id}`
+
 export class Offloader {
   /**
    * rsh is the remote-shell command rsync and git run (this CLI's `rsh --box <id>`); its children get the endpoint and
@@ -57,6 +63,7 @@ export class Offloader {
     const excludes = path.join(stage, 'excludes')
     const bundle = path.join(stage, 'offload.bundle')
     const refs = []
+    let legacy = null
     try {
       if (runSync(['rsync', '--version'], { env: this.env }).status !== 0) {
         findings.push(finding('rsync', 'block', 'rsync is not installed on this computer; offload copies the repo with it (macOS ships it; on Linux install the rsync package)'))
@@ -90,7 +97,7 @@ export class Offloader {
       if (!dir) throw new OffloadError('failed', 'begin named no directory')
       if (Array.isArray(begin.ignored) && begin.ignored.length) fs.appendFileSync(excludes, begin.ignored.map((p) => '/' + escape(p) + '\n').join(''))
 
-      refs.push(`refs/cocoonbox/offload/${id}`, `refs/cocoonbox/index/${id}`)
+      refs.push(`refs/box/offload/${id}`, `refs/box/index/${id}`)
       const record = {
         id, repo: key, box: this.box.id, box_name: this.box.name, name, dir, kind, base: null, top: repo.top,
         started_at_ms: Date.now(), seen: 0,
@@ -104,6 +111,8 @@ export class Offloader {
         const snapshot = repo.snapshot(index, `box offload ${id}`)
         record.base = snapshot
         repo.git(['update-ref', refs[0], snapshot])
+        legacy = legacyRef('offload', id)
+        repo.git(['update-ref', legacy, snapshot])
         repo.keepIndex(refs[1], index)
         const env = envJson(repo.top, this.env)
         fs.writeFileSync(path.join(stage, 'env.json'), env)
@@ -140,6 +149,7 @@ export class Offloader {
       const account = cli.account ? `, signed in as ${cli.account}` : ''
       return { record, accepted: Boolean(reply.accepted), findings, cli: `${kindOf(kind).title} ${cli.version || ''}`.trim() + account, timings, sent }
     } finally {
+      if (legacy) repo.run(['update-ref', '-d', legacy])
       fs.rmSync(excludes, { force: true })
       fs.rmSync(bundle, { force: true })
     }
@@ -279,11 +289,19 @@ export class Offloader {
     if (record.base && record.top) {
       const repo = GitRepo.open(record.top, this.env)
       if (!repo) throw new OffloadError('failed', `${record.top} is no longer a git repository`)
-      const ref = `refs/cocoonbox/back/${record.id}`
-      const fetch = await repo.runAsync(['fetch', '-q', `box:${record.dir}`, '+refs/heads/*:refs/cocoonbox/box/*', `+${ref}:${ref}`], {
-        extra: { GIT_SSH_COMMAND: this.rsh, GIT_SSH_VARIANT: 'simple', BOX_ENDPOINT: this.rshEnv.BOX_ENDPOINT, BOX_TOKEN: this.rshEnv.BOX_TOKEN },
-      })
-      if (fetch.status !== 0) throw new OffloadError('failed', `git fetch from the box failed (${fetch.status}):\n${fetch.error}`)
+      const ref = `refs/box/back/${record.id}`
+      const fetchBack = (from) =>
+        repo.runAsync(['fetch', '-q', `box:${record.dir}`, '+refs/heads/*:refs/box/box/*', `+${from}:${ref}`], {
+          extra: { GIT_SSH_COMMAND: this.rsh, GIT_SSH_VARIANT: 'simple', BOX_ENDPOINT: this.rshEnv.BOX_ENDPOINT, BOX_TOKEN: this.rshEnv.BOX_TOKEN },
+        })
+      const fetch = await fetchBack(ref)
+      if (fetch.status !== 0) {
+        // an older box image wrote the back commit only under its pre-rename name
+        const legacy = await fetchBack(legacyRef('back', record.id))
+        if (legacy.status !== 0) {
+          throw new OffloadError('failed', `git fetch from the box failed (${fetch.status}):\n${fetch.error}\nand under the older back ref (${legacy.status}):\n${legacy.error}`)
+        }
+      }
       landing = repo.land({ id: record.id, base: record.base, box: ref, index: path.join(this.store.directory(key), 'snapshot.index') })
     }
     await this.verb(['end', '--repo', key])

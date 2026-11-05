@@ -45,14 +45,17 @@ function handover(goal) {
   return HANDOVER_TEMPLATE.replace('<one-line goal>', goal)
 }
 
-/** playBoxAgent commits change in the copy, makes S' as the box packer's `post --back` does, and posts back. */
-function playBoxAgent({ dir, offload_id: id, repo: key }, change) {
+/**
+ * playBoxAgent commits change in the copy, makes S' as the box packer's `post --back` does, and posts back; legacy
+ * names S' as an image before simular-ai/box#78 does.
+ */
+function playBoxAgent({ dir, offload_id: id, repo: key }, change, { legacy = false } = {}) {
   for (const [file, text] of Object.entries(change)) fs.writeFileSync(path.join(dir, file), text)
   git(dir, 'add', '-A')
   git(dir, 'commit', '-qm', 'box work')
   const tree = git(dir, 'rev-parse', 'HEAD^{tree}')
   const snap = git(dir, 'commit-tree', tree, '-p', 'HEAD', '-m', 'back')
-  git(dir, 'update-ref', `refs/cocoonbox/back/${id}`, snap)
+  git(dir, 'update-ref', `refs/${legacy ? 'cocoonbox' : 'box'}/back/${id}`, snap)
   const outbox = path.join(tmp, 'state', `${key}.outbox.json`)
   const entries = fs.existsSync(outbox) ? JSON.parse(fs.readFileSync(outbox, 'utf8')) : []
   entries.push({ seq: entries.length + 1, kind: 'back', offload_id: id, cli: 'claude', time_ms: Date.now(), body: handover('done in the box') })
@@ -141,7 +144,7 @@ test('offload warns, then moves the task; back fast-forwards the box commits', {
   assert.ok(!fs.existsSync(path.join(copy, '.env')), 'ignored files stay here')
   assert.ok(!fs.existsSync(path.join(copy, 'node_modules')))
   // the bundle carried history and S
-  assert.equal(git(copy, 'rev-parse', `refs/cocoonbox/offload/${r.offload_id}`), git(repo, 'rev-parse', `refs/cocoonbox/offload/${r.offload_id}`))
+  assert.equal(git(copy, 'rev-parse', `refs/box/offload/${r.offload_id}`), git(repo, 'rev-parse', `refs/box/offload/${r.offload_id}`))
   assert.equal(git(copy, 'rev-parse', 'HEAD'), git(repo, 'rev-parse', 'HEAD'))
   assert.equal(fs.readFileSync(path.join(tmp, 'state', `${r.repo}.handover.md`), 'utf8'), handover('finish the thing'))
   const envJson = JSON.parse(fs.readFileSync(path.join(tmp, 'state', `${r.repo}.env.json`), 'utf8'))
@@ -195,8 +198,30 @@ test('back applies a clean merge uncommitted when the user worked meanwhile, els
   fs.writeFileSync(path.join(repo, 'a.txt'), 'mine\n')
   playBoxAgent(third, { 'a.txt': 'theirs\n' })
   const conflict = JSON.parse((await cli(['back', '--json'], { cwd: repo })).text)
-  assert.match(conflict.landing, /^conflict: the box's work is on the branch cocoonbox\/back-/)
+  assert.match(conflict.landing, /^conflict: the box's work is on the branch box\/back-/)
   assert.equal(fs.readFileSync(path.join(repo, 'a.txt'), 'utf8'), 'mine\n', 'the work tree is untouched')
+})
+
+test('a box on an image before the ref rename takes the offload and hands back', { skip, timeout: 60000 }, async () => {
+  const repo = makeRepo('proj-legacy')
+  fs.writeFileSync((await cli(['offload', 'handover-path'], { cwd: repo })).text.trim(), handover('old image'))
+  const old = await startFakeBox({ workspace: path.join(tmp, 'workspace'), state: path.join(tmp, 'state'), env: { ...IDENT, FAKE_BOX_LEGACY: '1' } })
+  try {
+    const extraEnv = { BOX_ENDPOINT: old.endpoint }
+    const done = await cli(['offload', '--kind', 'claude', '--yes', '--json'], { cwd: repo, extraEnv })
+    assert.equal(done.code, 0, done.stderr + done.text)
+    const r = JSON.parse(done.text)
+    const snap = git(repo, 'rev-parse', `refs/box/offload/${r.offload_id}`)
+    assert.equal(git(r.dir, 'rev-parse', `refs/cocoonbox/offload/${r.offload_id}`), snap, 'the old image gets S under its old name')
+    assert.equal(git(repo, 'for-each-ref', 'refs/cocoonbox/'), '', 'the old name is not kept in the user repo')
+    playBoxAgent(r, { 'a.txt': 'one\nfrom an old box\n' }, { legacy: true })
+    const back = await cli(['back', '--json'], { cwd: repo, extraEnv })
+    assert.equal(back.code, 0, back.stderr + back.text)
+    assert.match(JSON.parse(back.text).landing, /^fast-forward: /)
+    assert.equal(fs.readFileSync(path.join(repo, 'a.txt'), 'utf8'), 'one\nfrom an old box\n')
+  } finally {
+    await old.stop()
+  }
 })
 
 test('a box-side block exits 3 and names the box CLI commands', { skip, timeout: 60000 }, async () => {
