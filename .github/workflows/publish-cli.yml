@@ -26,6 +26,7 @@ name: Publish CLI
 # The repo is public, so npm attaches a provenance attestation.
 #
 # TODO(layer 3): nightly run against the latest client versions plus a real agent task on a box.
+# Design: cli/e2e/layer3/DESIGN.md (simular-ai/box-plugin#11).
 
 on:
   pull_request:
