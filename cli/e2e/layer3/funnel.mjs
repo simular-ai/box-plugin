@@ -19,8 +19,8 @@ export function liveGrantsOf(grants, client, nowMs) {
 export function funnelFrom(grants) {
   const at = (ms) => (ms ? new Date(ms).toISOString() : null)
   return {
-    source: 'cocoonbox Grants.List for the test account',
-    note: 'approvedAt is the consent (Approve). firstUsedAt is the first call made with the grant\'s token, to minute precision; it is not specific to tools/call. Token exchange and tools/call are not exposed yet, so the screenshots still decide whether the task ran.',
+    source: "box's list of apps connected to the test account",
+    note: 'approved means someone clicked Allow on the box sign-in page during this run. used means the app then sent at least one request to box. box does not record which tools the app called, so only the screenshots show whether the task ran.',
     approved: grants.length > 0,
     used: grants.some((g) => g.usedAtMs > 0),
     grants: grants.map((g) => ({ id: g.id, clientName: g.clientName, clientHost: g.clientHost, approvedAt: at(g.createdAtMs), firstUsedAt: at(g.usedAtMs), maxBoxes: g.maxBoxes, boxesCreated: g.boxIds.length })),
