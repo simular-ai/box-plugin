@@ -36,6 +36,7 @@ on:
       - 'dsh/**'
       - 'hermes/**'
       - 'openclaw/**'
+      - 'pi/**'
       - '.claude-plugin/**'
       - '.github/workflows/publish-cli.yml'
   push:
@@ -132,6 +133,19 @@ jobs:
           if [ ! -d hermes ]; then echo "no hermes/ folder on this ref; skipped"; exit 0; fi
           export HOME="$(mktemp -d)"
           hermes plugins validate ./hermes
+      - name: Pi package
+        run: |
+          set -euo pipefail
+          if [ ! -d pi ]; then echo "no pi/ folder on this ref; skipped"; exit 0; fi
+          npm pack ./pi --dry-run
+          export HOME="$(mktemp -d)"
+          npm install -g "$(node -p "require('./cli/e2e/clients.json').pi.npm")"
+          pi install ./pi
+          # The package's extension registers box; with no sign-in yet Pi reports it as needing one,
+          # which proves the server is registered and reachable. No model or key is needed.
+          out=$( (printf '%s\n' '{"id":"1","type":"prompt","message":"/mcp"}'; sleep 20) | pi --mode rpc --no-session 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q 'box: needs sign-in'
       - name: OpenClaw plugin
         run: |
           set -euo pipefail
