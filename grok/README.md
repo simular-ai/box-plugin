@@ -8,6 +8,7 @@ The plugin adds the box MCP server (`https://mcp.box.simular.ai/mcp`) and a `box
 
 1. Install Grok Build and sign in (see the [Grok Build docs](https://docs.x.ai/build/overview)), then run `grok`.
 2. Open the marketplace with `/marketplace`, find **box** and press `i` to install it.
+   Until box is listed in xAI's marketplace, install it straight from this repo instead: `grok plugin install simular-ai/box-plugin#grok`.
 3. Open the MCP servers tab with `/mcps`, select **box** and press `i` to sign in. Your browser opens the box sign-in page; sign in once with your box account (new accounts get free credit).
 4. Once **box** shows ready, ask Grok for anything that needs a computer, for example "open Hacker News in my box and summarize the top five posts".
 
