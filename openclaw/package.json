@@ -1,6 +1,6 @@
 {
   "name": "@simular-ai/openclaw-box",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "box by Simular for OpenClaw: a cloud Linux desktop your agent drives over MCP.",
   "type": "module",
   "license": "MIT",
