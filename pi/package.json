@@ -1,0 +1,25 @@
+{
+  "name": "@simular-ai/box-pi",
+  "version": "0.1.0",
+  "description": "box by Simular for the Pi coding agent: a cloud Linux computer with Chrome and a shell that Pi drives over MCP, while your own computer stays free. Sign in once in the browser; no key to paste.",
+  "license": "MIT",
+  "homepage": "https://box.simular.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simular-ai/box-plugin.git",
+    "directory": "pi"
+  },
+  "author": {
+    "name": "Simular",
+    "url": "https://simular.ai"
+  },
+  "keywords": ["pi-package", "box", "simular", "computer-use", "cloud-computer", "browser-automation", "mcp"],
+  "files": ["extensions", "skills", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": ["./extensions/box.ts"],
+    "skills": ["./skills"]
+  }
+}
