@@ -16,7 +16,7 @@ On OpenClaw 2026.10.4 or older, use `clawhub:@simular-ai/openclaw-box`. The inst
 
 Open the OpenClaw Control UI, go to **Settings > Plugins > box by Simular**, and under **Accounts** choose **Connect**. Sign in to box in the browser and choose **Allow**. The page then shows **Connected**.
 
-The box approval page says "Unverified - this agent registered itself": OpenClaw registers its own sign-in, so box can't confirm its name. That's expected; allow it only when you just started the sign-in yourself.
+The plugin signs in as "OpenClaw (box plugin)", with a client document hosted on box.simular.ai (`oauth.clientMetadataUrl`), so box's approval page shows it as coming from box.simular.ai. If you set box up with the CLI instead, the page says "Unverified - this agent registered itself": OpenClaw registered its own sign-in there, so box can't confirm its name. Allow it only when you just started the sign-in yourself.
 
 Sign-in needs the Control UI on the Gateway's own address (local loopback, its HTTPS address or its Tailscale address).
 
