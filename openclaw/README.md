@@ -26,7 +26,11 @@ Ask your agent something like "take a screenshot of my box" or "use box to open 
 
 ## If you set box up with the CLI before
 
-`npx @simular-ai/box connect --client openclaw` adds a server named `box` to `mcp.servers`. That entry overrides this plugin's `box` server. Keep one: either leave the CLI entry, or remove it (`openclaw mcp unset box`, with the Gateway stopped) and use the plugin.
+`npx @simular-ai/box connect --client openclaw` adds a server named `box` to `mcp.servers`. That entry overrides this plugin's `box` server, so keep one. To move to the plugin:
+
+1. Stop the Gateway first: `openclaw gateway stop`, or Ctrl+C if it runs in the foreground (Quick start). `openclaw mcp unset` refuses to run while the Gateway is up.
+2. `openclaw mcp unset box`
+3. Start the Gateway again (`openclaw gateway start`, or `openclaw gateway run` in the foreground), then sign in from the plugin page as above.
 
 ## Build and publish
 
