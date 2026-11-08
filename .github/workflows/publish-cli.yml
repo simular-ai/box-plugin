@@ -9,7 +9,8 @@ name: Publish CLI
 #            (versions pinned in cli/e2e/clients.json). No secrets.
 #   live     Layer 2: a real staging key (secret BOX_CI_KEY, variable BOX_CI_MCP_URL) proves the
 #            headless clients reach box and list its tools. Never on PRs from forks.
-# Publishing happens only when a tag `cli-vX.Y.Z` (or `cli-vX.Y.Z-rc.N`, dist-tag "next") is pushed.
+# Publishing is switched off: cli/ is deprecated (the publish job fails on purpose). It used to happen
+# when a tag `cli-vX.Y.Z` (or `cli-vX.Y.Z-rc.N`, dist-tag "next") was pushed.
 #
 # Cutting a release: bump "version" in cli/package.json, merge to main, then
 #   git tag cli-v<X.Y.Z> && git push origin cli-v<X.Y.Z>
@@ -251,6 +252,12 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      # @simular-ai/box 1.0 and later is the native CLI, released from its own repository; npm's
+      # trusted publisher for the package points there. This job must never publish a 0.x again.
+      - name: The JavaScript CLI is deprecated
+        run: |
+          echo "::error::cli/ is deprecated and no longer published; @simular-ai/box is released from the native CLI's repository." >&2
+          exit 1
       - name: Tagged commit is on main
         run: |
           set -euo pipefail

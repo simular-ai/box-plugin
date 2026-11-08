@@ -1,7 +1,7 @@
 {
   "name": "box",
   "displayName": "box by Simular",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Give Claude a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, while your own computer stays free. You sign in once in the browser; no key to paste.",
   "author": {
     "name": "Simular",
