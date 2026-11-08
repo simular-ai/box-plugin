@@ -1,5 +1,8 @@
 # @simular-ai/box
 
+> [!WARNING]
+> **Deprecated.** This JavaScript CLI (`@simular-ai/box` 0.x) is replaced by the native `simular-box` 1.0, published under the same npm name. `npx -y @simular-ai/box@latest <command>` runs the new one; the commands are the same. This folder is kept for reference and no longer released.
+
 Connect [box](https://box.simular.ai) to your AI apps in one command. box gives your AI agent a computer of its own: a cloud Linux desktop with Chrome and a shell, driven over MCP.
 
 ```bash
