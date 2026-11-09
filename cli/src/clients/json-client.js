@@ -16,6 +16,7 @@ import { getPath, parseJsonc, removeJsonServer, upsertJsonServer } from '../form
  * @param {string[]} [spec.bins]                binaries that mean "installed"
  * @param {(ctx) => string[]} [spec.dirs]       directories that mean "installed"
  * @param {string[]|((ctx) => string[])} [spec.next]
+ * @param {object} [spec.signIn]              optional sign-in connect can run for the person (see opencode.js)
  */
 export function jsonClient(spec) {
   const entryUrl = spec.entryUrl || ((e) => e?.url ?? e?.serverUrl)
@@ -31,6 +32,7 @@ export function jsonClient(spec) {
     name: spec.name,
     auth: spec.auth,
     aliases: spec.aliases || [],
+    signIn: spec.signIn,
 
     detect(ctx) {
       for (const bin of spec.bins || []) if (ctx.which(bin)) return { installed: true, via: `${bin} on PATH` }

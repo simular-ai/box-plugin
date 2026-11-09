@@ -377,3 +377,12 @@ test('key files: no backup keeps an old key after rotation or remove', () => {
   assert.deepEqual(leftovers, ['.env'])
   assert.equal(sb.read('.hermes/.env'), '')
 })
+
+test('opencode: reads box sign-in from `opencode mcp auth list`', async () => {
+  const { authListSaysSignedIn } = await import('../src/clients/opencode.js')
+  const out = (mark, status) => `\x1b[0m\n┌  MCP OAuth Status\n│\n●  ${mark} box \x1b[90m${status}\n│      \x1b[90mhttps://mcp.box.simular.ai/mcp\n│\n└  1 OAuth-capable server(s)\n`
+  assert.equal(authListSaysSignedIn(out('✗', 'not authenticated'), 'box'), false)
+  assert.equal(authListSaysSignedIn(out('✓', 'authenticated'), 'box'), true)
+  assert.equal(authListSaysSignedIn(out('⚠', 'expired'), 'box'), false)
+  assert.equal(authListSaysSignedIn(out('✓', 'authenticated'), 'simular-box'), undefined)
+})

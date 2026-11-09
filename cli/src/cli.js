@@ -190,6 +190,7 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
   let failed = 0
   let connected = 0
   const next = []
+  const signable = []
   for (const client of clients) {
     // The spinner draws with escape codes; in logs and CI print plain lines instead.
     const spin = isTTY ? p.spinner() : { start() {}, stop: (msg, code) => (code ? p.log.error(msg) : p.log.success(msg)) }
@@ -203,7 +204,8 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
       if (moved.length && res.actions.length && !ctx.dryRun) {
         p.log.warn(`  box moved from ${moved.join(', ')} to ${ctx.url}. ${client.name} may ask you to sign in to box again.`)
       }
-      for (const n of res.next || []) next.push(`${client.name}: ${n}`)
+      for (const n of res.next || []) next.push({ client, text: `${client.name}: ${n}` })
+      if (client.signIn && modes[client.id] === 'oauth') signable.push(client)
       connected++
     } catch (err) {
       failed++
@@ -212,16 +214,39 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
       if (isPermissionError(err)) {
         const where = safe(() => client.configLocation(ctx), 'its config')
         p.log.warn(`  box could not change ${where}: the file or its folder may belong to another user (for example after a run with sudo), or the app may hold it open. Check the owner of both, or quit the app, then run again.`)
-        for (const n of client.permissionHelp?.(ctx) || []) next.push(`${client.name}: ${n}`)
+        for (const n of client.permissionHelp?.(ctx) || []) next.push({ client, text: `${client.name}: ${n}` })
       }
     }
   }
-  if (next.length) p.note(next.join('\n'), 'Next')
+  // Some apps sign in from their own CLI; offer to run it here instead of leaving it as a step.
+  if (interactive && !ctx.dryRun) {
+    for (const client of signable) {
+      if (await signInNow(ctx, client)) next.splice(0, next.length, ...next.filter((n) => n.client !== client))
+    }
+  }
+  if (next.length) p.note(next.map((n) => n.text).join('\n'), 'Next')
   if (connected && !ctx.dryRun) {
     p.note([`After signing in (or setting your key), start a new chat (or restart the app) so box's tools load. Then try:`, ...EXAMPLE_PROMPTS.map((e) => `  ${e}`)].join('\n'), 'Try box')
   }
   p.outro(`Watch your box live: ${WATCH_URL}  |  Keys and connected apps: ${KEYS_URL}  |  Check: npx @simular-ai/box doctor`)
   return failed ? 1 : 0
+}
+
+/** Runs a client's own sign-in for box in this terminal. True when the client then reports box signed in. */
+async function signInNow(ctx, client) {
+  if (client.signIn.signedIn(ctx) === true) {
+    p.log.success(`${client.name}: already signed in to box`)
+    return true
+  }
+  const go = await p.confirm({ message: `Sign in to box in ${client.name} now? It opens your browser.`, initialValue: true })
+  if (cancelled(go) || !go) return false
+  const args = client.signIn.args(ctx)
+  p.log.step(`Running ${[client.signIn.bin, ...args].join(' ')}`)
+  ctx.runInteractive(client.signIn.bin, args)
+  const ok = client.signIn.signedIn(ctx)
+  if (ok === true) p.log.success(`${client.name}: signed in to box`)
+  else p.log.warn(`${client.name}: box is not signed in yet (the sign-in may have timed out). Run it again when you're ready.`)
+  return ok === true
 }
 
 /** The old box addresses a client points at before connect rewrites them. */
