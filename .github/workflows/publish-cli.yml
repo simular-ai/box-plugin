@@ -124,14 +124,18 @@ jobs:
           export HOME="$(mktemp -d)"
           claude plugin validate .
           claude plugin validate ./claude
-      - name: Plugin pins the CLI to the exact version in cli/package.json
-        # A range (^0.2.0) lets npx run a version published after review; the Claude directory
-        # review asks for an exact pin, and it must be the CLI version this ref ships.
+      - name: Plugin pins the CLI to one exact version that is on npm
+        # A range (^1.0.0) lets npx run a version published after review; the Claude directory
+        # review asks for an exact pin. Since 1.0.0 the CLI is the Rust simular-box, released from
+        # simular-ai/box-cli, so the pin follows its npm releases, not cli/package.json.
         run: |
           set -euo pipefail
-          want="@simular-ai/box@$(node -p "require('./cli/package.json').version")"
-          bad=$(grep -rnoE '@simular-ai/box@[^ `"]*' claude | grep -vF ":$want" || true)
-          if [ -n "$bad" ]; then echo "pin npx to $want in claude/:"; echo "$bad"; exit 1; fi
+          pins=$(grep -rhoE '@simular-ai/box@[^ `"]*' claude | sort -u)
+          if [ "$(printf '%s\n' "$pins" | grep -c .)" -ne 1 ]; then echo "claude/ must pin one CLI version, found:"; echo "$pins"; exit 1; fi
+          v=${pins#@simular-ai/box@}
+          if ! printf '%s' "$v" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "pin an exact release, not $pins"; exit 1; fi
+          if [ "$(npm view "@simular-ai/box@$v" version)" != "$v" ]; then echo "$pins is not on npm"; exit 1; fi
+          echo "claude/ pins $pins"
       - name: DeepSeek Harness package
         run: npm pack ./dsh --dry-run
       - name: Hermes plugin
