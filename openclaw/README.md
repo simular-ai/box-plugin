@@ -18,7 +18,7 @@ Open the OpenClaw Control UI, go to **Settings > Plugins > box by Simular**, and
 
 The plugin signs in as "OpenClaw (box plugin)", with a client document hosted on box.simular.ai (`oauth.clientMetadataUrl`), so box's approval page shows it as coming from box.simular.ai. If you set box up with the CLI instead, the page says "Unverified - this agent registered itself": OpenClaw registered its own sign-in there, so box can't confirm its name. Allow it only when you just started the sign-in yourself.
 
-Sign-in needs the Control UI on the Gateway's own address (local loopback, its HTTPS address or its Tailscale address).
+Connect works when the Control UI is open on this computer (`http://127.0.0.1:18789` or `localhost`, any port). If you open it on an HTTPS or Tailscale address, box refuses that address, because the client document can only list local ones: sign in with the CLI instead (`openclaw mcp login box`, or `npx @simular-ai/box connect --client openclaw`).
 
 ## Use it
 
