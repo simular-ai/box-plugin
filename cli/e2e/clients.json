@@ -4,7 +4,7 @@
   "codex": { "npm": "@openai/codex@0.166.0" },
   "opencode": { "npm": "opencode-ai@1.19.5" },
   "gemini-cli": { "npm": "@google/gemini-cli@0.66.0" },
-  "openclaw": { "npm": "openclaw@2026.10.9" },
+  "openclaw": { "npm": "openclaw@2026.11.1" },
   "hermes": { "git": "https://github.com/NousResearch/hermes-agent", "tag": "v0.22.6" },
   "grok": { "version": "1.0.70" },
   "cursor": { "cursorAgent": "2026.10.22-27dcf5f" }

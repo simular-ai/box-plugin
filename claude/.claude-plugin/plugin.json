@@ -1,7 +1,7 @@
 {
   "name": "box",
   "displayName": "box by Simular",
-  "version": "0.2.0",
+  "version": "0.2.3",
   "description": "Give Claude a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, while your own computer stays free. You sign in once in the browser; no key to paste.",
   "author": {
     "name": "Simular",
@@ -10,5 +10,9 @@
   "homepage": "https://box.simular.ai",
   "repository": "https://github.com/simular-ai/box-plugin",
   "license": "MIT",
+  "privacyPolicyUrl": "https://www.simular.ai/privacy-policy",
+  "termsOfServiceUrl": "https://www.simular.ai/terms-of-use",
+  "supportUrl": "https://www.simular.ai/support",
+  "documentationUrl": "https://box.simular.ai/docs",
   "keywords": ["computer-use", "browser-automation", "desktop-automation", "cloud-computer", "mcp"]
 }

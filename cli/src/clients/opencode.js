@@ -22,4 +22,25 @@ export default jsonClient({
   bins: ['opencode'],
   dirs: (ctx) => [path.join(ctx.xdgConfig, 'opencode')],
   next: (ctx) => [`Run \`opencode mcp auth ${ctx.name}\`, sign in in the browser and click Approve.`],
+  // Without this step box shows "needs authentication" and loads no tools, so an interactive
+  // connect offers to run it. `opencode mcp auth` exits 0 even when sign-in fails or times out,
+  // so the result is read back from `opencode mcp auth list` instead of the exit code.
+  signIn: {
+    bin: 'opencode',
+    args: (ctx) => ['mcp', 'auth', ctx.name],
+    signedIn(ctx) {
+      const res = ctx.run('opencode', ['mcp', 'auth', 'list'], { timeoutMs: 30000 })
+      if (res.status !== 0) return undefined
+      return authListSaysSignedIn(res.stdout, ctx.name)
+    },
+  },
 })
+
+/** Pure: whether `opencode mcp auth list` shows `name` as authenticated; undefined when it isn't listed. */
+export function authListSaysSignedIn(stdout, name) {
+  // eslint-disable-next-line no-control-regex
+  const lines = String(stdout).replace(/\x1b\[[0-9;]*m/g, '').split('\n')
+  const line = lines.find((l) => l.split(/\s+/).includes(name))
+  if (!line) return undefined
+  return line.includes('✓') && !/not authenticated|expired/i.test(line)
+}
