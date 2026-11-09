@@ -8,6 +8,8 @@ Write the hand-over as if for a capable engineer who has never seen this convers
 `box` below is `npx -y @simular-ai/box@1.0.0`. Run it in the repo the user works in. It does every
 mechanical step: never copy files or secrets yourself, never print a secret, never edit the
 files it writes.
+The CLI prints follow-up commands as `simular-box ...`; that name is not on PATH under npx, so
+when you pass one to the user, write it with `box` (the npx command above) instead.
 
 ## OFFLOAD
 
@@ -20,6 +22,8 @@ files it writes.
    `codex`, `cursor`). Add `--box NAME` when the user names a box.
    - "not signed in": ask the user to run `box login` in their terminal (it opens the
      browser), then run offload again.
+   - Exit 4 is a refused sign-in (expired or revoked): ask the user to run `box login`, then
+     run offload again.
    - Exit 3 is a block: stop and tell the user why, one line per finding. If the box CLI is
      missing or signed out, tell the user to run, in their own terminal,
      `box offload install-cli --kind <K>` and then `box offload sign-in --kind <K>`

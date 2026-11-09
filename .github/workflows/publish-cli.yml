@@ -11,8 +11,9 @@ name: Publish CLI
 #            headless clients reach box and list its tools. Never on PRs from forks.
 # Publishing happens only when a tag `cli-vX.Y.Z` (or `cli-vX.Y.Z-rc.N`, dist-tag "next") is pushed.
 #
-# Cutting a release: bump "version" in cli/package.json, merge to main, then
-#   git tag cli-v<X.Y.Z> && git push origin cli-v<X.Y.Z>
+# Since @simular-ai/box 1.0.0 (the Rust CLI from simular-ai/box-cli) this repo no longer
+# publishes the CLI: its npm trusted publisher was removed, so do not push cli-v* tags. The
+# publish job below is kept only until cli/ is retired.
 #
 # Auth: npm trusted publishing (OIDC). The publish job's `id-token: write` lets the npm CLI swap
 # a GitHub OIDC token for a short-lived publish token, so no long-lived npm token is stored.
