@@ -124,6 +124,14 @@ jobs:
           export HOME="$(mktemp -d)"
           claude plugin validate .
           claude plugin validate ./claude
+      - name: Plugin pins the CLI to the exact version in cli/package.json
+        # A range (^0.2.0) lets npx run a version published after review; the Claude directory
+        # review asks for an exact pin, and it must be the CLI version this ref ships.
+        run: |
+          set -euo pipefail
+          want="@simular-ai/box@$(node -p "require('./cli/package.json').version")"
+          bad=$(grep -rnoE '@simular-ai/box@[^ `"]*' claude | grep -vF ":$want" || true)
+          if [ -n "$bad" ]; then echo "pin npx to $want in claude/:"; echo "$bad"; exit 1; fi
       - name: DeepSeek Harness package
         run: npm pack ./dsh --dry-run
       - name: Hermes plugin
