@@ -144,6 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -d openclaw ]; then echo "no openclaw/ folder on this ref; skipped"; exit 0; fi
+          (cd openclaw && npm install --no-audit --no-fund && npm run build)
           export HOME="$(mktemp -d)"
           openclaw plugins install ./openclaw --force --accept-capabilities
           openclaw plugins inspect box
