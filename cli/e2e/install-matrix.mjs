@@ -45,9 +45,10 @@ const writeJson = (file, value) => {
   fs.writeFileSync(file, JSON.stringify(value, null, 2))
 }
 
-// Claude Code: install the plugin as it was before the move from a git marketplace built from this
-// checkout (so the job tests this branch's plugin, not main's), then push this branch's plugin to
-// it, as a merge to main would. connect must then update the marketplace and the plugin. A fake
+// Claude Code: install the plugin as it was before the move and the rename (named `box`, at the old
+// URL) from a git marketplace built from this checkout (so the job tests this branch's plugin, not
+// main's), then push this branch's plugin to it, as a merge to main would. connect must then
+// uninstall box@simular-box, update the marketplace and install simular-box@simular-box. A fake
 // https URL is mapped to the local repo with git's url.<base>.insteadOf, because Claude Code adds
 // git marketplaces only from https URLs.
 const FAKE_MARKETPLACE = 'https://box-plugin.invalid/box-plugin.git'
@@ -62,7 +63,10 @@ function seedOldClaudePlugin() {
   const mcp = path.join(work, 'claude', '.mcp.json')
   fs.writeFileSync(mcp, fs.readFileSync(mcp, 'utf8').replace(URL_RE, 'relay.simular.cloud/mcp'))
   const manifest = path.join(work, 'claude', '.claude-plugin', 'plugin.json')
-  fs.writeFileSync(manifest, JSON.stringify({ ...JSON.parse(fs.readFileSync(manifest, 'utf8')), version: '0.0.1' }, null, 2))
+  fs.writeFileSync(manifest, JSON.stringify({ ...JSON.parse(fs.readFileSync(manifest, 'utf8')), name: 'box', version: '0.0.1' }, null, 2))
+  const market = path.join(work, '.claude-plugin', 'marketplace.json')
+  const m = JSON.parse(fs.readFileSync(market, 'utf8'))
+  fs.writeFileSync(market, JSON.stringify({ ...m, plugins: m.plugins.map((p) => ({ ...p, name: 'box' })) }, null, 2))
   sh('git', ['init', '--quiet', '--initial-branch', 'main', work])
   git('add', '-A')
   git('commit', '--quiet', '-m', 'before the move')
@@ -98,7 +102,7 @@ const ADAPTERS = {
       seedOldClaudePlugin()
     },
     list: () => sh('claude', ['mcp', 'list']),
-    present: (out) => /plugin:box:box/.test(out) && URL_RE.test(out),
+    present: (out) => /plugin:simular-box:box/.test(out) && URL_RE.test(out),
     needsAuth: /needs authentication/i,
     otherKept: (out) => /\bother\b/.test(out),
   },

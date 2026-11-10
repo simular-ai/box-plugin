@@ -33,7 +33,7 @@ when you pass one to the user, write it with `box` (the npx command above) inste
    - For a secret it warns about, ask the user; only they opt one in
      (`box offload secrets add file:.env`). Never opt in on your own.
 4. When it prints `offloaded`, tell the user the box, that its agent runs with permission
-   prompts bypassed, and that `/box:back` returns the work. End your turn and make no more
+   prompts bypassed, and that `/simular-box:back` returns the work. End your turn and make no more
    changes to this repo.
 5. On exit 1, report its last line. Nothing changed on this computer; do not retry by hand.
 

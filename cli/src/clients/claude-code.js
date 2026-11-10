@@ -9,7 +9,10 @@ import { DEFAULT_MCP_URL, ForeignServerError, LEGACY_SERVER_NAMES, SERVER_NAME }
 
 const MARKETPLACE_SOURCE = 'simular-ai/box-plugin'
 const MARKETPLACE = 'simular-box'
-const PLUGIN = `box@${MARKETPLACE}`
+const PLUGIN = `simular-box@${MARKETPLACE}`
+// The plugin was called `box` until 2026-11; the Claude plugin directory already had a `box`.
+// connect replaces an installed old plugin with the new one, and remove takes both.
+const LEGACY_PLUGINS = [`box@${MARKETPLACE}`]
 
 function configDir(ctx) {
   return ctx.env.CLAUDE_CONFIG_DIR || path.join(ctx.home, '.claude')
@@ -27,14 +30,26 @@ function readUserServers(ctx) {
   }
 }
 
-function pluginState(ctx) {
+function listPlugins(ctx) {
   const res = ctx.run('claude', ['plugin', 'list', '--json'])
-  if (res.status !== 0) return null
+  if (res.status !== 0) return []
   try {
-    return JSON.parse(res.stdout).find((p) => p.id === PLUGIN) || null
+    return JSON.parse(res.stdout)
   } catch {
-    return null
+    return []
   }
+}
+
+function pluginState(ctx) {
+  return listPlugins(ctx).find((p) => p.id === PLUGIN) || null
+}
+
+function legacyPlugins(ctx) {
+  return listPlugins(ctx).filter((p) => LEGACY_PLUGINS.includes(p.id))
+}
+
+function scopeArgs(plugin) {
+  return ['user', 'project', 'local'].includes(plugin.scope) ? ['--scope', plugin.scope] : []
 }
 
 function must(res, what) {
@@ -59,17 +74,22 @@ export default {
   status(ctx) {
     const user = readUserServers(ctx)
     const mine = (n) => user[n] && ctx.ours(user[n].url)
-    const plugin = ctx.which('claude') ? pluginState(ctx) : null
+    const hasClaude = ctx.which('claude')
+    const plugin = hasClaude ? pluginState(ctx) : null
+    const old = hasClaude ? legacyPlugins(ctx) : []
     const entries = []
     // A disabled plugin next to a user-scope server is how connect sets up a BOX_MCP_URL override.
     if (plugin && (plugin.enabled || !mine(ctx.name))) {
       entries.push({ where: `plugin ${PLUGIN}${plugin.enabled ? '' : ' (disabled)'}`, url: plugin.mcpServers?.box?.url, enabled: plugin.enabled })
     }
+    // An old-named plugin still serves box (and its URL tells connect whether box moved).
+    for (const p of old.filter((p) => p.enabled)) entries.push({ where: `plugin ${p.id}`, url: p.mcpServers?.box?.url, enabled: true })
     if (mine(ctx.name)) entries.push({ where: `user scope in ${userConfigFile(ctx)}`, url: user[ctx.name].url, enabled: true })
-    // The plugin's server is named plugin:box:box, so a foreign user-scope `box` only matters
-    // when connect would add a user-scope server itself (BOX_MCP_URL set).
+    // The plugin's server is named plugin:simular-box:box, so a foreign user-scope `box` only
+    // matters when connect would add a user-scope server itself (BOX_MCP_URL set).
     const foreign = user[ctx.name] && !mine(ctx.name) && ctx.url !== DEFAULT_MCP_URL ? { where: userConfigFile(ctx), url: user[ctx.name].url } : undefined
-    return { entries, legacy: LEGACY_SERVER_NAMES.filter(mine), keyConfigured: false, foreign }
+    const legacy = [...LEGACY_SERVER_NAMES.filter(mine), ...old.map((p) => `plugin ${p.id}`)]
+    return { entries, legacy, keyConfigured: false, foreign }
   },
 
   connect(ctx) {
@@ -95,6 +115,9 @@ export default {
           const list = ctx.run('claude', ['plugin', 'marketplace', 'list', '--json'])
           if (!list.stdout.includes(`"${MARKETPLACE}"`)) {
             must(ctx.run('claude', ['plugin', 'marketplace', 'add', MARKETPLACE_SOURCE], { timeoutMs: 180000 }), 'claude plugin marketplace add')
+          } else {
+            // A marketplace added before the rename lists only the old plugin name.
+            must(ctx.run('claude', ['plugin', 'marketplace', 'update', MARKETPLACE], { timeoutMs: 180000 }), 'claude plugin marketplace update')
           }
           must(ctx.run('claude', ['plugin', 'install', PLUGIN, '--scope', 'user'], { timeoutMs: 180000 }), 'claude plugin install')
         }
@@ -106,8 +129,7 @@ export default {
         if (pinned && pinned !== DEFAULT_MCP_URL) {
           if (!ctx.dryRun) {
             must(ctx.run('claude', ['plugin', 'marketplace', 'update', MARKETPLACE], { timeoutMs: 180000 }), 'claude plugin marketplace update')
-            const scope = ['user', 'project', 'local'].includes(plugin.scope) ? ['--scope', plugin.scope] : []
-            must(ctx.run('claude', ['plugin', 'update', PLUGIN, ...scope], { timeoutMs: 180000 }), 'claude plugin update')
+            must(ctx.run('claude', ['plugin', 'update', PLUGIN, ...scopeArgs(plugin)], { timeoutMs: 180000 }), 'claude plugin update')
             const now = pluginState(ctx)?.mcpServers?.box?.url
             if (now !== DEFAULT_MCP_URL) {
               throw new Error(
@@ -144,7 +166,13 @@ export default {
         actions.push(`disabled plugin ${PLUGIN} (it points at the default URL)`)
       }
     }
-    const label = ctx.url === DEFAULT_MCP_URL ? 'plugin:box:box' : ctx.name
+    // The old-named plugin goes on either route, and only once box is set up the new way, so a
+    // failed install leaves the user with the old plugin rather than with no box at all.
+    for (const p of legacyPlugins(ctx)) {
+      if (!ctx.dryRun) must(ctx.run('claude', ['plugin', 'uninstall', p.id, ...scopeArgs(p)]), 'claude plugin uninstall')
+      actions.push(`${ctx.dryRun ? 'would uninstall' : 'uninstalled'} old plugin ${p.id}`)
+    }
+    const label = ctx.url === DEFAULT_MCP_URL ? 'plugin:simular-box:box' : ctx.name
     return {
       actions,
       next: [`${updated ? 'Restart Claude Code (a plugin update applies on restart), then run' : 'Start Claude Code, run'} /mcp, pick ${label} and choose Authenticate; sign in and click Approve in the browser.`],
@@ -165,9 +193,9 @@ export default {
       if (!ctx.dryRun) ctx.run('claude', ['mcp', 'remove', '--scope', 'user', name])
       actions.push(`${ctx.dryRun ? 'would remove' : 'removed'} user-scope server ${name}`)
     }
-    if (pluginState(ctx)) {
-      if (!ctx.dryRun) must(ctx.run('claude', ['plugin', 'uninstall', PLUGIN]), 'claude plugin uninstall')
-      actions.push(`${ctx.dryRun ? 'would uninstall' : 'uninstalled'} plugin ${PLUGIN}`)
+    for (const p of listPlugins(ctx).filter((p) => p.id === PLUGIN || LEGACY_PLUGINS.includes(p.id))) {
+      if (!ctx.dryRun) must(ctx.run('claude', ['plugin', 'uninstall', p.id, ...scopeArgs(p)]), 'claude plugin uninstall')
+      actions.push(`${ctx.dryRun ? 'would uninstall' : 'uninstalled'} plugin ${p.id}`)
     }
     return { actions, warnings, next: [] }
   },
