@@ -5,7 +5,7 @@ description: Hand this coding task to an agent in the user's box (their cloud co
 
 The agent in the box starts fresh. It knows only what your hand-over says, plus the repo.
 Write the hand-over as if for a capable engineer who has never seen this conversation.
-`box` below is `npx -y @simular-ai/box@1.0.0`. Run it in the repo the user works in. It does every
+`box` below is `npx -y @simular-ai/box@1.1.0`. Run it in the repo the user works in. It does every
 mechanical step: never copy files or secrets yourself, never print a secret, never edit the
 files it writes.
 The CLI prints follow-up commands as `simular-box ...`; that name is not on PATH under npx, so
