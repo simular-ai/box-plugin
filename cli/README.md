@@ -19,7 +19,7 @@ The command is `simular-box` (`box` belongs to box.com's CLI), so after `npm i -
 
 | App | `--client` | What connect does | Sign-in |
 | --- | --- | --- | --- |
-| Claude Code | `claude-code` | Installs the [`claude/`](../claude/) plugin (box server + box skill) with `claude plugin install box@simular-box`. With `BOX_MCP_URL` set, `claude mcp add --scope user --transport http box <url>` instead | OAuth: `/mcp` → box → Authenticate |
+| Claude Code | `claude-code` | Installs the [`claude/`](../claude/) plugin (box server + box skill) with `claude plugin install simular-box@simular-box`. With `BOX_MCP_URL` set, `claude mcp add --scope user --transport http box <url>` instead | OAuth: `/mcp` → box → Authenticate |
 | Codex | `codex` | Writes `[mcp_servers.box]` to `$CODEX_HOME/config.toml` (default `~/.codex`) | OAuth: `codex mcp login box`, or Settings → MCP servers → Authenticate in the Codex app |
 | Cursor | `cursor` | Merges `mcpServers.box` into `~/.cursor/mcp.json` | OAuth: Settings → MCP → Login |
 | Gemini CLI | `gemini-cli` | Merges `mcpServers.box` (`type: http`) into `~/.gemini/settings.json` | OAuth: `/mcp auth box` (in a trusted folder) |
@@ -66,7 +66,7 @@ npx @simular-ai/box offload install-cli --kind claude       # once per box: the 
 npx @simular-ai/box offload sign-in --kind claude           # once per box: Claude Code's own login, run in the box
 ```
 
-Then, in Claude Code with the `box` plugin, `/box:offload` and later `/box:back`. Elsewhere, write the hand-over to the path `offload handover-path` prints (or paste the request `offload --handover-prompt --kind codex` prints into your agent), then:
+Then, in Claude Code with the `simular-box` plugin, `/simular-box:offload` and later `/simular-box:back`. Elsewhere, write the hand-over to the path `offload handover-path` prints (or paste the request `offload --handover-prompt --kind codex` prints into your agent), then:
 
 ```bash
 npx @simular-ai/box offload --kind claude     # preflight, copy the repo, start the box agent from the hand-over
@@ -85,7 +85,7 @@ How it works:
 
 ## Other endpoints
 
-`BOX_MCP_URL` points everything at another endpoint (for example staging): `BOX_MCP_URL=https://… npx @simular-ai/box connect`. Offload, `login` and `rsh` use its origin, or `BOX_ENDPOINT` when set. When box's endpoint moves, a new CLI version changes the default and `connect` updates each app: it rewrites a `box` entry that points at the old address and, for Claude Code, updates the `box@simular-box` plugin. Apps may then ask you to sign in to box again. box moved from `relay.simular.cloud` to `mcp.box.simular.ai` on 2026-11-04; `doctor` flags an app still on the old address.
+`BOX_MCP_URL` points everything at another endpoint (for example staging): `BOX_MCP_URL=https://… npx @simular-ai/box connect`. Offload, `login` and `rsh` use its origin, or `BOX_ENDPOINT` when set. When box's endpoint moves, a new CLI version changes the default and `connect` updates each app: it rewrites a `box` entry that points at the old address and, for Claude Code, updates the `simular-box@simular-box` plugin. Apps may then ask you to sign in to box again. box moved from `relay.simular.cloud` to `mcp.box.simular.ai` on 2026-11-04; `doctor` flags an app still on the old address.
 
 ## Development
 

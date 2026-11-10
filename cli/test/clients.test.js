@@ -209,7 +209,7 @@ test('claude-code: default URL installs the plugin from the marketplace; overrid
   sb.write('.claude.json', JSON.stringify({ mcpServers: { 'box-control': { url: 'https://relay.simular.cloud/control' }, box: { type: 'http', url: DEFAULT_MCP_URL }, other: { command: 'y' } } }))
   client('claude').connect(sb.ctx)
   const state = () => JSON.parse(sb.read('fake-claude-state.json'))
-  assert.deepEqual(state().plugins, { 'box@simular-box': { enabled: true, url: DEFAULT_MCP_URL } })
+  assert.deepEqual(state().plugins, { 'simular-box@simular-box': { enabled: true, url: DEFAULT_MCP_URL } })
   assert.deepEqual(Object.keys(JSON.parse(sb.read('.claude.json')).mcpServers), ['other'])
   assert.ok(state().calls.includes('plugin marketplace add simular-ai/box-plugin'))
   assert.deepEqual(client('claude').connect(sb.ctx).actions, [])
@@ -217,7 +217,7 @@ test('claude-code: default URL installs the plugin from the marketplace; overrid
   const ctx = { ...sb.ctx, url: 'https://staging.example.test/mcp' }
   client('claude').connect(ctx)
   assert.deepEqual(JSON.parse(sb.read('.claude.json')).mcpServers.box, { type: 'http', url: 'https://staging.example.test/mcp' })
-  assert.equal(state().plugins['box@simular-box'].enabled, false)
+  assert.equal(state().plugins['simular-box@simular-box'].enabled, false)
   assert.equal(client('claude').status(ctx).entries.length, 1)
 
   // remove runs with the same BOX_MCP_URL, so the staging host counts as ours.
@@ -229,18 +229,18 @@ test('claude-code: default URL installs the plugin from the marketplace; overrid
 test('claude-code: a plugin installed before the move is updated to the new URL', { skip: NO_FAKE_BINS }, () => {
   const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
   const old = 'https://relay.simular.cloud/mcp'
-  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'box@simular-box': { enabled: true, url: old } }, calls: [] }))
+  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'simular-box@simular-box': { enabled: true, url: old } }, calls: [] }))
   const state = () => JSON.parse(sb.read('fake-claude-state.json'))
   assert.equal(client('claude').status(sb.ctx).entries[0].url, old)
   const dry = client('claude').connect({ ...sb.ctx, dryRun: true })
-  assert.match(dry.actions.join(' '), /would update plugin box@simular-box/)
-  assert.equal(state().plugins['box@simular-box'].url, old, 'a dry run updates nothing')
+  assert.match(dry.actions.join(' '), /would update plugin simular-box@simular-box/)
+  assert.equal(state().plugins['simular-box@simular-box'].url, old, 'a dry run updates nothing')
   const res = client('claude').connect(sb.ctx)
-  assert.match(res.actions.join(' '), /updated plugin box@simular-box/)
+  assert.match(res.actions.join(' '), /updated plugin simular-box@simular-box/)
   assert.match(res.next[0], /^Restart Claude Code/)
   assert.ok(state().calls.includes('plugin marketplace update simular-box'))
-  assert.ok(state().calls.includes('plugin update box@simular-box --scope user'))
-  assert.equal(state().plugins['box@simular-box'].url, DEFAULT_MCP_URL)
+  assert.ok(state().calls.includes('plugin update simular-box@simular-box --scope user'))
+  assert.equal(state().plugins['simular-box@simular-box'].url, DEFAULT_MCP_URL)
   assert.deepEqual(client('claude').connect(sb.ctx).actions, [], 'idempotent once updated')
   // Our own old user-scope box next to the plugin is removed; remove takes the plugin either way.
   sb.write('.claude.json', JSON.stringify({ mcpServers: { box: { type: 'http', url: old } } }))
@@ -249,9 +249,35 @@ test('claude-code: a plugin installed before the move is updated to the new URL'
   assert.deepEqual(state().plugins, {})
 })
 
+test('claude-code: the plugin installed under its old name box is replaced by simular-box', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
+  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'box@simular-box': { enabled: true, url: DEFAULT_MCP_URL } }, calls: [] }))
+  const state = () => JSON.parse(sb.read('fake-claude-state.json'))
+  const st = client('claude').status(sb.ctx)
+  assert.deepEqual(st.legacy, ['plugin box@simular-box'])
+  assert.equal(st.entries[0].where, 'plugin box@simular-box')
+  const dry = client('claude').connect({ ...sb.ctx, dryRun: true })
+  assert.match(dry.actions.join(' '), /would uninstall old plugin box@simular-box/)
+  assert.ok(state().plugins['box@simular-box'], 'a dry run uninstalls nothing')
+  const res = client('claude').connect(sb.ctx)
+  assert.match(res.actions.join('; '), /installed plugin simular-box@simular-box \(box server \+ box skill\); uninstalled old plugin box@simular-box/)
+  assert.match(res.next[0], /plugin:simular-box:box/)
+  assert.ok(state().calls.includes('plugin marketplace update simular-box'), 'the marketplace is refreshed before the install')
+  assert.deepEqual(state().plugins, { 'simular-box@simular-box': { enabled: true, url: DEFAULT_MCP_URL } })
+  assert.deepEqual(client('claude').status(sb.ctx).legacy, [])
+  assert.deepEqual(client('claude').connect(sb.ctx).actions, [], 'idempotent once replaced')
+})
+
+test('claude-code: remove takes the old-named plugin too', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
+  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'box@simular-box': { enabled: true, url: DEFAULT_MCP_URL } }, calls: [] }))
+  assert.match(client('claude').remove(sb.ctx).actions.join(' '), /uninstalled plugin box@simular-box/)
+  assert.deepEqual(JSON.parse(sb.read('fake-claude-state.json')).plugins, {})
+})
+
 test('claude-code: an update that leaves the old URL fails instead of claiming success', { skip: NO_FAKE_BINS }, () => {
   const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
-  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'box@simular-box': { enabled: true, url: 'https://relay.simular.cloud/mcp' } }, staleMarketplace: true, calls: [] }))
+  sb.write('fake-claude-state.json', JSON.stringify({ marketplaces: ['simular-box'], plugins: { 'simular-box@simular-box': { enabled: true, url: 'https://relay.simular.cloud/mcp' } }, staleMarketplace: true, calls: [] }))
   assert.throws(() => client('claude').connect(sb.ctx), /still points at https:\/\/relay\.simular\.cloud\/mcp after an update/)
 })
 
@@ -349,7 +375,7 @@ test('openclaw: a foreign box blocks connect and survives remove', { skip: NO_FA
 test('claude-code: a foreign user-scope box is never removed', { skip: NO_FAKE_BINS }, () => {
   const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
   sb.write('.claude.json', JSON.stringify({ mcpServers: { box: { type: 'http', url: BOX_COM } } }))
-  client('claude').connect(sb.ctx) // plugin route: its server is plugin:box:box, no clash
+  client('claude').connect(sb.ctx) // plugin route: its server is plugin:simular-box:box, no clash
   assert.equal(JSON.parse(sb.read('.claude.json')).mcpServers.box.url, BOX_COM)
   const override = { ...sb.ctx, url: 'https://staging.relay.simular.cloud/mcp' }
   assert.throws(() => client('claude').connect(override), /--name/)

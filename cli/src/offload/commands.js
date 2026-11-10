@@ -258,7 +258,7 @@ export async function offload(ctx, flags, rest, io = {}) {
       stdout.write(`  sent ${(outcome.sent / 1e6).toFixed(1)} MB; ${outcome.timings.map(([s, ms]) => `${s} ${(ms / 1000).toFixed(1)} s`).join(', ')}\n`)
       if (!outcome.accepted) stdout.write(`  the box CLI has not taken the hand-over yet; watch it with \`${CMD} offload status\`\n`)
       stdout.write(`  watch its terminal: ${CMD} rsh -t --box ${box.name} tmux attach -t ${tmuxSession(r)}\n`)
-      stdout.write(`Bring it back with /box:back or \`${CMD} back\`.\n`)
+      stdout.write(`Bring it back with /simular-box:back or \`${CMD} back\`.\n`)
       return 0
     } finally {
       connection.close()
