@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "box": {
-      "type": "http",
-      "url": "https://mcp.box.simular.ai/mcp"
-    }
-  }
-}
