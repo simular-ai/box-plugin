@@ -11,5 +11,8 @@
       "source": "./claude",
       "description": "box by Simular: a cloud computer your agent drives over MCP."
     }
-  ]
+  ],
+  "renames": {
+    "box": "simular-box"
+  }
 }
