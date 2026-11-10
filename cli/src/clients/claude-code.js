@@ -150,7 +150,7 @@ export default {
       // Restart first: a running Claude Code doesn't see box (its /mcp says no servers are
       // configured), and an agent passing these steps on must not put the sign-in before it.
       next: [
-        `Restart Claude Code now: box is not visible in a session that was already running${updated ? ' (and a plugin update applies on restart)' : ''}. Quit it (/exit) and start \`claude\` again; in the Claude desktop app's Code tab, start a new session instead.`,
+        `Restart Claude Code now: box is not visible in a session that was already running${updated ? ' (and a plugin update applies on restart)' : ''}. Quit it (/exit) and start \`claude\` again (or just start it, if it isn't running); in the Claude desktop app's Code tab, start a new session instead.`,
         `Then run /mcp, pick ${label} and choose Authenticate; sign in and click Allow in the browser.`,
       ],
     }

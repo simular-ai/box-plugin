@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from '../src/args.js'
-import { mcpUrl, maskKey, isOldUrl, isOurUrl, DEFAULT_MCP_URL, EXAMPLE_PROMPTS } from '../src/constants.js'
+import { mcpUrl, maskKey, isOldUrl, isOurUrl, DEFAULT_MCP_URL, EXAMPLE_PROMPTS, connectCommand } from '../src/constants.js'
 import { parseWwwAuthenticate, probeEndpoint, checkKey, lookupHost, proxyFromEnv } from '../src/probe.js'
 import { runDoctor } from '../src/cli.js'
 import { sandbox } from './helpers.js'
@@ -254,4 +254,10 @@ test('real CLI: connect --client openclaw while OpenClaw holds its lock prints o
   assert.match(out, /OpenClaw is running and holds its config lock.*Type `\/exit` to quit OpenClaw/)
   assert.ok(!out.includes('could not change'), 'no generic permission advice')
   assert.ok(!out.includes('Use box to open Chrome'), 'no example prompts: nothing was set up')
+})
+
+test('connectCommand: keeps BOX_MCP_URL (quoted), --name and --auth key', () => {
+  assert.equal(connectCommand({ url: DEFAULT_MCP_URL, name: 'box', platform: 'linux' }, 'codex'), 'npx -y @simular-ai/box connect --client codex --yes')
+  assert.equal(connectCommand({ url: 'https://x.test/mcp?a=1&b=2', name: 'simular-box', platform: 'darwin' }, 'openclaw', { mode: 'key' }), "BOX_MCP_URL='https://x.test/mcp?a=1&b=2' npx -y @simular-ai/box connect --client openclaw --name simular-box --auth key --yes")
+  assert.equal(connectCommand({ url: 'https://x.test/mcp', name: 'box', platform: 'win32' }, 'codex'), "$env:BOX_MCP_URL='https://x.test/mcp'; npx -y @simular-ai/box connect --client codex --yes")
 })

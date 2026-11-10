@@ -428,3 +428,14 @@ test('openclaw: a held state lock gives one "quit OpenClaw, then run..." message
   const other = sandbox({ bins: { openclaw: FAKE_OPENCLAW.replace("else if (a[0] === 'mcp' && a[1] === 'set') {", "else if (a[0] === 'mcp' && a[1] === 'set' && false) {") } })
   assert.throws(() => client('openclaw').connect(other.ctx, { mode: 'oauth' }), /openclaw mcp set failed: unexpected: mcp set/)
 })
+
+test('openclaw: the lock message keeps --auth key (and skips the browser sign-in); other "lock" text is not a lock', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { openclaw: LOCKED_OPENCLAW }, env: { FAKE_OPENCLAW_LOCKED: '1' } })
+  assert.throws(() => client('openclaw').connect(sb.ctx, { mode: 'key', key: KEY }), (err) => {
+    assert.match(err.message, /run `npx -y @simular-ai\/box connect --client openclaw --auth key --yes`\. Then start/)
+    assert.ok(!err.message.includes('mcp login'))
+    return true
+  })
+  const npmish = sandbox({ bins: { openclaw: FAKE_OPENCLAW.replace("else if (a[0] === 'mcp' && a[1] === 'set') {", "else if (a[0] === 'mcp' && a[1] === 'set') { console.error('cannot read package-lock.json'); process.exit(1) }\nelse if (false) {") } })
+  assert.throws(() => client('openclaw').connect(npmish.ctx, { mode: 'oauth' }), /openclaw mcp set failed: cannot read package-lock\.json/)
+})

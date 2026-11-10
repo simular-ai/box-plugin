@@ -54,26 +54,28 @@ function rawEntry(ctx, name) {
 }
 
 // A running OpenClaw session holds a lock on its state while it runs, so `openclaw mcp set` from
-// inside it fails (or waits until our timeout). Its wording isn't documented, so match the shapes
-// a lock error takes; a timeout gets the same advice.
-const LOCK_RE = /\block(ed|file)?\b|lock file|held by|owned by another|another (openclaw )?(process|instance|session)/i
+// inside it fails. Its wording isn't documented, so match a lock on its state or config, or a lock
+// held by another process, and nothing else that says "lock" (package-lock.json).
+const LOCK_RE = /\b(state|config|configuration)\b[^\n]{0,40}\block(ed)?\b|\block(ed)?\b[^\n]{0,60}\b(held|owned|in use)\b|\blocked by\b/i
 
 /** Thrown when OpenClaw is running and holds its config: one message that says what to do. */
 export class OpenClawRunningError extends Error {
-  constructor(ctx) {
+  constructor(ctx, mode) {
+    const signIn = mode === 'key' ? '' : `, then \`openclaw mcp login ${ctx.name}\`, and click Allow in the browser`
     super(
       `OpenClaw is running and holds its config lock, so box can't be added from inside an OpenClaw session. ` +
-        `Type \`/exit\` to quit OpenClaw. In this terminal, run \`${connectCommand(ctx, 'openclaw')}\`, then \`openclaw mcp login ${ctx.name}\`, and click Allow in the browser. ` +
+        `Type \`/exit\` to quit OpenClaw. In this terminal, run \`${connectCommand(ctx, 'openclaw', { mode })}\`${signIn}. ` +
         `Then start \`openclaw\` again and ask: Use box to take a screenshot of the box.`,
     )
     this.code = 'OPENCLAW_RUNNING'
   }
 }
 
-function must(res, what, ctx) {
+function must(res, what, ctx, mode) {
   if (res.status === 0) return
+  if (res.timedOut) throw new Error(`${what} did not finish in time. If OpenClaw is running, quit it (\`/exit\`) and run connect again in a terminal`)
   const msg = (res.stderr || res.stdout).trim().split('\n').filter(Boolean).pop() || `exit ${res.status}`
-  if (ctx && (LOCK_RE.test(res.stderr || res.stdout) || res.timedOut)) throw new OpenClawRunningError(ctx)
+  if (ctx && LOCK_RE.test(res.stderr || res.stdout)) throw new OpenClawRunningError(ctx, mode)
   if (/gateway/i.test(msg) && /running/i.test(msg)) {
     throw new Error(`${what}: ${msg}. Run \`openclaw gateway stop\`, run connect again, then \`openclaw gateway start\``)
   }
@@ -144,7 +146,7 @@ export default {
         : { url: ctx.url, transport: 'streamable-http', auth: 'oauth' }
     let configChanged = false
     if (!sameValue(current, entry)) {
-      if (!ctx.dryRun) must(ctx.run('openclaw', ['mcp', 'set', ctx.name, JSON.stringify(entry)], { timeoutMs: 60000 }), 'openclaw mcp set', ctx)
+      if (!ctx.dryRun) must(ctx.run('openclaw', ['mcp', 'set', ctx.name, JSON.stringify(entry)], { timeoutMs: 60000 }), 'openclaw mcp set', ctx, mode)
       configChanged = true
       actions.push(`${ctx.dryRun ? 'would set' : 'set'} mcp.servers.${ctx.name} (${mode === 'key' ? 'personal key from .env' : 'OAuth'}) via openclaw mcp set`)
     }

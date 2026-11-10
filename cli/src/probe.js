@@ -114,9 +114,10 @@ export async function checkKey(url, key, opts = {}) {
  * with ENOTFOUND even though the endpoint looks up (simular-ai/box-portal#191).
  */
 export async function lookupHost(url, { lookup = dns.promises.lookup, timeoutMs = 5000 } = {}) {
-  const host = new URL(url).hostname
+  let host = null
   let timer
   try {
+    host = new URL(url).hostname
     const timeout = new Promise((_, reject) => {
       timer = setTimeout(() => reject(Object.assign(new Error('timed out'), { code: 'ETIMEOUT' })), timeoutMs)
     })

@@ -423,7 +423,9 @@ async function doctor(ctx, flags, { stdout }) {
         `Your apps may not be able to reach box directly: one that doesn't use the proxy fails to sign in with "${d.error}" or "DNS lookup failed".\n` +
         `  fix: start that app with the same proxy settings${d.proxy ? ` (${d.proxy.split('=')[0]})` : ''}, or make ${d.host} resolve on this computer (check your DNS or VPN). Then restart the app and sign in again.`,
     )
-  } else if (!d.ok) p.log.error(`DNS: this computer can't look up ${d.host} (${d.error}). Check your network, DNS or VPN.`)
+  } else if (!d.ok) {
+    p.log.error(`DNS: this computer can't look up ${d.host} (${d.error}). ${d.proxy ? `A proxy is set (${d.proxy}); apps that use it may still reach box, others fail to sign in with "${d.error}". ` : ''}Check your network, DNS or VPN${d.proxy ? ', or start the failing app with the same proxy settings' : ''}.`)
+  }
   if (!report.clients.length) p.log.warn('No supported AI apps found.')
   for (const c of report.clients) {
     const lines = []

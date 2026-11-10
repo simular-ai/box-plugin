@@ -43,7 +43,7 @@ export default {
   },
 
   configLocation: configFile,
-  writes: (ctx) => [configFile(ctx)],
+  writes: (ctx) => [configFile(ctx), envFile(ctx)],
 
   status(ctx) {
     const servers = serverEntry(ctx)
