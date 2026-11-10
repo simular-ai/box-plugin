@@ -47,8 +47,9 @@ const writeJson = (file, value) => {
 
 // Claude Code: install the plugin as it was before the move and the rename (named `box`, at the old
 // URL) from a git marketplace built from this checkout (so the job tests this branch's plugin, not
-// main's), then push this branch's plugin to it, as a merge to main would. connect must then
-// uninstall box@simular-box, update the marketplace and install simular-box@simular-box. A fake
+// main's), then push this branch's plugin to it, as a merge to main would. connect must then end
+// with only simular-box@simular-box installed: Claude Code moves box@simular-box to it through the
+// marketplace's renames map, and connect uninstalls an old box@simular-box that is left. A fake
 // https URL is mapped to the local repo with git's url.<base>.insteadOf, because Claude Code adds
 // git marketplaces only from https URLs.
 const FAKE_MARKETPLACE = 'https://box-plugin.invalid/box-plugin.git'
