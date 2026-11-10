@@ -386,3 +386,56 @@ test('opencode: reads box sign-in from `opencode mcp auth list`', async () => {
   assert.equal(authListSaysSignedIn(out('⚠', 'expired'), 'box'), false)
   assert.equal(authListSaysSignedIn(out('✓', 'authenticated'), 'simular-box'), undefined)
 })
+
+// simular-ai/box-portal#152: a running Claude Code doesn't see box, so the restart comes before /mcp.
+test('claude-code: Next says to restart Claude Code before the /mcp sign-in, and to click Allow', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { claude: FAKE_CLAUDE } })
+  const { next } = client('claude-code').connect(sb.ctx)
+  assert.match(next[0], /^Restart Claude Code now: box is not visible in a session that was already running\. Quit it \(\/exit\) and start `claude` again/)
+  assert.match(next[0], /Code tab, start a new session instead/)
+  assert.match(next[1], /^Then run \/mcp, pick plugin:box:box and choose Authenticate; sign in and click Allow/)
+  assert.ok(!next.join('\n').includes('Approve'), 'the consent button is Allow')
+})
+
+// simular-ai/box-portal#185: ~/.cursor/mcp.json also serves cursor-agent, which has no Settings screen.
+test('cursor: Next gives the editor path (Customize -> MCPs -> Authenticate) and the cursor-agent CLI sign-in', () => {
+  const sb = sandbox()
+  const { next } = client('cursor').connect(sb.ctx)
+  assert.equal(next.length, 2)
+  assert.match(next[0], /^In the editor: open Customize in the left sidebar .*choose MCPs and click Authenticate next to box; sign in and click Allow\. Older versions: Cursor Settings -> Tools & MCP -> Login\./)
+  assert.match(next[1], /run `cursor-agent mcp login box`, sign in and click Allow, then start a new cursor-agent session/)
+})
+
+// simular-ai/box-portal#195: OpenClaw run from inside a live OpenClaw session can't write its config.
+const LOCKED_OPENCLAW = FAKE_OPENCLAW.replace(
+  "else if (a[0] === 'mcp' && a[1] === 'set') {",
+  "else if (a[0] === 'mcp' && a[1] === 'set' && process.env.FAKE_OPENCLAW_LOCKED) { console.error('Error: state lock is held by another OpenClaw process (pid 4242)'); process.exit(1) }\nelse if (a[0] === 'mcp' && a[1] === 'set') {",
+)
+
+test('openclaw: a held state lock gives one "quit OpenClaw, then run..." message', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { openclaw: LOCKED_OPENCLAW }, env: { FAKE_OPENCLAW_LOCKED: '1' } })
+  assert.throws(
+    () => client('openclaw').connect(sb.ctx, { mode: 'oauth' }),
+    (err) => {
+      assert.equal(err.code, 'OPENCLAW_RUNNING')
+      assert.match(err.message, /^OpenClaw is running and holds its config lock/)
+      assert.match(err.message, /Type `\/exit` to quit OpenClaw\. In this terminal, run `npx -y @simular-ai\/box connect --client openclaw --yes`, then `openclaw mcp login box`, and click Allow in the browser\./)
+      return true
+    },
+  )
+  assert.equal(sb.read('.openclaw/openclaw.json'), null, 'nothing was written')
+  // Other failures keep their own message.
+  const other = sandbox({ bins: { openclaw: FAKE_OPENCLAW.replace("else if (a[0] === 'mcp' && a[1] === 'set') {", "else if (a[0] === 'mcp' && a[1] === 'set' && false) {") } })
+  assert.throws(() => client('openclaw').connect(other.ctx, { mode: 'oauth' }), /openclaw mcp set failed: unexpected: mcp set/)
+})
+
+test('openclaw: the lock message keeps --auth key (and skips the browser sign-in); other "lock" text is not a lock', { skip: NO_FAKE_BINS }, () => {
+  const sb = sandbox({ bins: { openclaw: LOCKED_OPENCLAW }, env: { FAKE_OPENCLAW_LOCKED: '1' } })
+  assert.throws(() => client('openclaw').connect(sb.ctx, { mode: 'key', key: KEY }), (err) => {
+    assert.match(err.message, /run `npx -y @simular-ai\/box connect --client openclaw --auth key --yes`\. Then start/)
+    assert.ok(!err.message.includes('mcp login'))
+    return true
+  })
+  const npmish = sandbox({ bins: { openclaw: FAKE_OPENCLAW.replace("else if (a[0] === 'mcp' && a[1] === 'set') {", "else if (a[0] === 'mcp' && a[1] === 'set') { console.error('cannot read package-lock.json'); process.exit(1) }\nelse if (false) {") } })
+  assert.throws(() => client('openclaw').connect(npmish.ctx, { mode: 'oauth' }), /openclaw mcp set failed: cannot read package-lock\.json/)
+})

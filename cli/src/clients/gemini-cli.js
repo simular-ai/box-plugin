@@ -17,5 +17,5 @@ export default jsonClient({
   entryUrl: (e) => e?.url ?? e?.httpUrl,
   bins: ['gemini'],
   dirs: (ctx) => [path.join(ctx.home, '.gemini')],
-  next: (ctx) => [`Start Gemini CLI in a trusted folder, run \`/mcp auth ${ctx.name}\`, sign in in the browser and click Approve.`],
+  next: (ctx) => [`Start Gemini CLI in a trusted folder, run \`/mcp auth ${ctx.name}\`, sign in in the browser and click Allow.`],
 })

@@ -19,13 +19,13 @@ The command is `simular-box` (`box` belongs to box.com's CLI), so after `npm i -
 
 | App | `--client` | What connect does | Sign-in |
 | --- | --- | --- | --- |
-| Claude Code | `claude-code` | Installs the [`claude/`](../claude/) plugin (box server + box skill) with `claude plugin install box@simular-box`. With `BOX_MCP_URL` set, `claude mcp add --scope user --transport http box <url>` instead | OAuth: `/mcp` → box → Authenticate |
+| Claude Code | `claude-code` | Installs the [`claude/`](../claude/) plugin (box server + box skill) with `claude plugin install box@simular-box`. With `BOX_MCP_URL` set, `claude mcp add --scope user --transport http box <url>` instead | OAuth: restart Claude Code first (a running session doesn't see box), then `/mcp` → box → Authenticate |
 | Codex | `codex` | Writes `[mcp_servers.box]` to `$CODEX_HOME/config.toml` (default `~/.codex`) | OAuth: `codex mcp login box`, or Settings → MCP servers → Authenticate in the Codex app |
-| Cursor | `cursor` | Merges `mcpServers.box` into `~/.cursor/mcp.json` | OAuth: Settings → MCP → Login |
+| Cursor | `cursor` | Merges `mcpServers.box` into `~/.cursor/mcp.json` | OAuth: in the editor, Customize → MCPs → Authenticate (older: Settings → Tools & MCP → Login); in `cursor-agent`, `cursor-agent mcp login box` |
 | Gemini CLI | `gemini-cli` | Merges `mcpServers.box` (`type: http`) into `~/.gemini/settings.json` | OAuth: `/mcp auth box` (in a trusted folder) |
 | OpenCode | `opencode` | Merges `mcp.box` (`type: remote`) into `~/.config/opencode/opencode.json(c)` | OAuth: `opencode mcp auth box` |
 | Hermes Agent | `hermes` | Writes `mcp_servers.box` to `$HERMES_HOME/config.yaml` (default `~/.hermes`); restarts a running gateway | OAuth (`hermes mcp login box`) or `--auth key` |
-| OpenClaw | `openclaw` | `openclaw mcp set box …` with `transport: streamable-http`; restarts a running Gateway when the key changes | OAuth (`openclaw mcp login box`) or `--auth key` |
+| OpenClaw | `openclaw` | `openclaw mcp set box …` with `transport: streamable-http`; restarts a running Gateway when the key changes. Run it outside OpenClaw: a running session holds its config lock, and connect then says to quit OpenClaw first | OAuth (`openclaw mcp login box`) or `--auth key` |
 | VS Code | `vscode` | Merges `servers.box` (`type: http`) into the user `mcp.json` | OAuth, when the server starts |
 | Claude Desktop | `claude-desktop` | Writes nothing: remote servers are connectors in the app. Prints the steps | OAuth in the app |
 
@@ -35,7 +35,7 @@ The CLI only changes or removes a server that points at box by Simular (`mcp.box
 
 ## Sign-in
 
-Every app signs in with OAuth by default: the app opens a browser page, you sign in to box and click Approve. No key to copy.
+Every app signs in with OAuth by default: the app opens a browser page, you sign in to box and click Allow. No key to copy.
 
 Hermes and OpenClaw often run around the clock on a server, where an expired OAuth sign-in waits for a person. For those, `--auth key` uses a personal key instead:
 

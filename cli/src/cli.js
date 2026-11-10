@@ -3,8 +3,9 @@ import * as p from '@clack/prompts'
 import { parseArgs } from './args.js'
 import { createContext } from './context.js'
 import { CLIENTS, findClient } from './clients/index.js'
-import { DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, EXAMPLE_PROMPTS, isOldUrl, looksLikeKey, validServerName } from './constants.js'
-import { probeEndpoint, checkKey } from './probe.js'
+import { connectCommand, DEFAULT_MCP_URL, KEY_ENV, KEYS_URL, WATCH_URL, INSTALL_URL, SUPPORT_EMAIL, EXAMPLE_PROMPTS, isOldUrl, looksLikeKey, validServerName } from './constants.js'
+import { probeEndpoint, checkKey, lookupHost, proxyFromEnv } from './probe.js'
+import { assertWritable } from './fsutil.js'
 import { OFFLOAD_HELP, boxContext, login, logout, rshCommand, offload, back } from './offload/commands.js'
 
 const VERSION = createRequire(import.meta.url)('../package.json').version
@@ -192,10 +193,13 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
   const next = []
   const signable = []
   for (const client of clients) {
-    // The spinner draws with escape codes; in logs and CI print plain lines instead.
-    const spin = isTTY ? p.spinner() : { start() {}, stop: (msg, code) => (code ? p.log.error(msg) : p.log.success(msg)) }
-    spin.start(`${client.name}`)
+    // The spinner draws with escape codes; in logs and CI (and an agent's tool call) print plain
+    // lines instead, starting with one before any slow step so the run never looks stuck.
+    const spin = isTTY ? p.spinner() : { start: (msg) => p.log.step(msg), stop: (msg, code) => (code ? p.log.error(msg) : p.log.success(msg)) }
+    spin.start(`${client.name}: setting up box`)
     try {
+      // Fail before changing anything when the config can't be written (an agent's sandbox).
+      if (!ctx.dryRun) for (const f of client.writes?.(ctx) || []) assertWritable(f)
       const moved = movedFrom(ctx, client)
       const res = await client.connect(ctx, { key, mode: modes[client.id] })
       spin.stop(`${client.name}: ${res.actions.length ? res.actions.join('; ') : 'already set up'}`)
@@ -211,7 +215,11 @@ async function connect(ctx, flags, { interactive, env, isTTY }) {
       failed++
       spin.stop(`${client.name}: failed`, 1)
       p.log.error(`  ${err.message}`)
-      if (isPermissionError(err)) {
+      if (isPermissionError(err) && (err.code === 'EROFS' || inAgentSandbox(env))) {
+        // Inside Codex's sandbox (and others like it) the app's settings are read-only, and
+        // retrying there, or with the app's own `mcp add`, fails the same way.
+        p.log.warn(`  This looks like an AI agent's sandbox (Codex's, for example), which can't change ${client.name}'s settings. Run this command in a normal terminal instead: ${connectCommand(ctx, client.id)}`)
+      } else if (isPermissionError(err)) {
         const where = safe(() => client.configLocation(ctx), 'its config')
         p.log.warn(`  box could not change ${where}: the file or its folder may belong to another user (for example after a run with sudo), or the app may hold it open. Check the owner of both, or quit the app, then run again.`)
         for (const n of client.permissionHelp?.(ctx) || []) next.push({ client, text: `${client.name}: ${n}` })
@@ -255,9 +263,14 @@ function movedFrom(ctx, client) {
   return [...new Set((st?.entries || []).map((e) => e.url).filter((u) => u && isOldUrl(u, ctx.url)))]
 }
 
-/** EACCES/EPERM, or EBUSY (Windows: the app holds the file open), including as text ("Access is denied"). */
+/** EACCES/EPERM/EROFS, or EBUSY (Windows: the app holds the file open), including as text ("Access is denied"). */
 export function isPermissionError(err) {
-  return ['EACCES', 'EPERM', 'EBUSY'].includes(err?.code) || /\bEACCES\b|\bEPERM\b|\bEBUSY\b|permission denied|access is denied|operation not permitted/i.test(err?.message || '')
+  return ['EACCES', 'EPERM', 'EROFS', 'EBUSY'].includes(err?.code) || /\bEACCES\b|\bEPERM\b|\bEROFS\b|\bEBUSY\b|permission denied|access is denied|operation not permitted|read-only file system/i.test(err?.message || '')
+}
+
+/** Codex sets these in the commands it runs in its sandbox. */
+function inAgentSandbox(env) {
+  return Boolean(env.CODEX_SANDBOX || env.CODEX_SANDBOX_NETWORK_DISABLED)
 }
 
 async function remove(ctx, flags, { interactive }) {
@@ -304,9 +317,15 @@ async function remove(ctx, flags, { interactive }) {
   return failed ? 1 : 0
 }
 
-export async function runDoctor(ctx, flags, { probe = probeEndpoint, check = checkKey } = {}) {
-  const report = { url: ctx.url, defaultUrl: DEFAULT_MCP_URL, endpoint: null, clients: [] }
-  report.endpoint = await probe(ctx.url)
+export async function runDoctor(ctx, flags, { probe = probeEndpoint, check = checkKey, resolve = lookupHost } = {}) {
+  const report = { url: ctx.url, defaultUrl: DEFAULT_MCP_URL, endpoint: null, dns: null, clients: [] }
+  ;[report.endpoint, report.dns] = await Promise.all([probe(ctx.url), resolve(ctx.url)])
+  if (!report.dns.ok) {
+    report.dns.proxy = proxyFromEnv(ctx.env)
+    // The HTTPS check working while DNS fails means it went another way, almost always a proxy;
+    // apps that don't use it fail to sign in with ENOTFOUND.
+    report.dns.proxiedOnly = Boolean(report.endpoint.ok || report.endpoint.status)
+  }
   const explicit = selectedFromFlags(flags)
   const rows = explicit.length ? explicit.map((client) => ({ client, detected: safe(() => client.detect(ctx), { installed: false }) })) : detectAll(ctx).filter((d) => d.detected.installed)
   for (const { client, detected } of rows) {
@@ -380,21 +399,33 @@ export async function runDoctor(ctx, flags, { probe = probeEndpoint, check = che
     row.fixes = [...new Set(row.fixes)]
     row.ok = row.problems.length === 0
   }
-  report.ok = report.endpoint.ok && report.clients.every((c) => c.ok)
+  report.ok = report.endpoint.ok && report.dns.ok && report.clients.every((c) => c.ok)
   return report
 }
 
 async function doctor(ctx, flags, { stdout }) {
-  const report = await runDoctor(ctx, flags)
   if (flags.json) {
+    const report = await runDoctor(ctx, flags)
     stdout.write(JSON.stringify(report, null, 2) + '\n')
     return report.ok ? 0 : 1
   }
+  // Say something before the network checks, which can take a few seconds.
   p.intro('box doctor')
   if (ctx.url !== DEFAULT_MCP_URL) p.log.info(`BOX_MCP_URL is set: checking ${ctx.url}`)
+  const report = await runDoctor(ctx, flags)
   const ep = report.endpoint
   if (ep.ok) p.log.success(`Endpoint ${ep.url} is up (401 + sign-in metadata, authorization server ${ep.authorizationServer})`)
   else p.log.error(`Endpoint: ${ep.error}. Check your network or proxy; status: https://box.simular.ai`)
+  const d = report.dns
+  if (!d.ok && d.proxiedOnly) {
+    p.log.error(
+      `DNS: this computer can't look up ${d.host} (${d.error}), though the check above reached box ${d.proxy ? `through a proxy (${d.proxy})` : 'another way (a proxy?)'}. ` +
+        `Your apps may not be able to reach box directly: one that doesn't use the proxy fails to sign in with "${d.error}" or "DNS lookup failed".\n` +
+        `  fix: start that app with the same proxy settings${d.proxy ? ` (${d.proxy.split('=')[0]})` : ''}, or make ${d.host} resolve on this computer (check your DNS or VPN). Then restart the app and sign in again.`,
+    )
+  } else if (!d.ok) {
+    p.log.error(`DNS: this computer can't look up ${d.host} (${d.error}). ${d.proxy ? `A proxy is set (${d.proxy}); apps that use it may still reach box, others fail to sign in with "${d.error}". ` : ''}Check your network, DNS or VPN${d.proxy ? ', or start the failing app with the same proxy settings' : ''}.`)
+  }
   if (!report.clients.length) p.log.warn('No supported AI apps found.')
   for (const c of report.clients) {
     const lines = []

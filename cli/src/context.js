@@ -45,7 +45,7 @@ export function createContext({ env = process.env, platform = process.platform, 
       const resolved = ctx.which(bin)
       if (!resolved) return { status: 127, stdout: '', stderr: `${bin} not found` }
       const res = spawn.sync(resolved, args, { env, input, encoding: 'utf8', timeout: timeoutMs })
-      return { status: res.status ?? 1, stdout: res.stdout || '', stderr: res.stderr || String(res.error || '') }
+      return { status: res.status ?? 1, stdout: res.stdout || '', stderr: res.stderr || String(res.error || ''), timedOut: res.error?.code === 'ETIMEDOUT' }
     },
     /** Run a client's own CLI attached to this terminal, for its interactive sign-in. */
     runInteractive(bin, args) {

@@ -27,7 +27,7 @@ export default {
   connect(ctx) {
     return {
       actions: ['nothing written: Claude Desktop adds remote servers as connectors in the app'],
-      next: [`Open Settings -> Connectors -> Add custom connector, name it box, paste ${ctx.url}, click Connect, sign in and Approve.`],
+      next: [`Open Settings -> Connectors -> Add custom connector, name it box, paste ${ctx.url}, click Connect, sign in and click Allow.`],
     }
   },
   remove() {

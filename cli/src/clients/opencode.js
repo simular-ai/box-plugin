@@ -21,7 +21,7 @@ export default jsonClient({
   entry: (ctx) => ({ type: 'remote', url: ctx.url, enabled: true }),
   bins: ['opencode'],
   dirs: (ctx) => [path.join(ctx.xdgConfig, 'opencode')],
-  next: (ctx) => [`Run \`opencode mcp auth ${ctx.name}\`, sign in in the browser and click Approve.`],
+  next: (ctx) => [`Run \`opencode mcp auth ${ctx.name}\`, sign in in the browser and click Allow.`],
   // Without this step box shows "needs authentication" and loads no tools, so an interactive
   // connect offers to run it. `opencode mcp auth` exits 0 even when sign-in fails or times out,
   // so the result is read back from `opencode mcp auth list` instead of the exit code.

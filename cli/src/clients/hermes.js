@@ -43,6 +43,7 @@ export default {
   },
 
   configLocation: configFile,
+  writes: (ctx) => [configFile(ctx), envFile(ctx)],
 
   status(ctx) {
     const servers = serverEntry(ctx)
@@ -89,7 +90,7 @@ export default {
     if (r.changed) actions.push(`${ctx.dryRun ? 'would write' : 'wrote'} mcp_servers.${ctx.name} (${mode === 'key' ? 'personal key' : 'OAuth'}) to ${f}`)
     if (r.backup) backups.push(r.backup)
 
-    if (mode === 'oauth') next.push(`Run \`hermes mcp login ${ctx.name}\`, sign in in the browser and click Approve (on a server without a browser: \`hermes mcp login ${ctx.name} --flow device\`, or use --auth key).`)
+    if (mode === 'oauth') next.push(`Run \`hermes mcp login ${ctx.name}\`, sign in in the browser and click Allow (on a server without a browser: \`hermes mcp login ${ctx.name} --flow device\`, or use --auth key).`)
     if ((keyChanged || r.changed) && !ctx.dryRun) {
       // A running gateway keeps the old config and key until it restarts.
       if (ctx.which('hermes')) {
