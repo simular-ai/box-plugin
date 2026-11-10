@@ -37,3 +37,18 @@ test('dry run changes nothing', () => {
   assert.equal(res.changed, true)
   assert.equal(fs.existsSync(file), false)
 })
+
+test('assertWritable: passes for a new file under a writable folder, throws with the code for a read-only one', { skip: (process.platform === 'win32' || process.getuid?.() === 0) && 'needs POSIX permissions and a non-root user' }, async () => {
+  const { assertWritable } = await import('../src/fsutil.js')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'box-fs-'))
+  assertWritable(path.join(dir, 'not', 'yet', 'config.toml'))
+  const ro = path.join(dir, 'ro')
+  fs.mkdirSync(ro)
+  fs.writeFileSync(path.join(ro, 'config.toml'), 'x = 1\n')
+  fs.chmodSync(ro, 0o500)
+  try {
+    assert.throws(() => assertWritable(path.join(ro, 'config.toml')), (err) => err.code === 'EACCES' && /can't write .*config\.toml \(EACCES\)/.test(err.message))
+  } finally {
+    fs.chmodSync(ro, 0o700)
+  }
+})

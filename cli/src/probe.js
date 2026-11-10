@@ -1,4 +1,5 @@
 // Network checks for `doctor`. Uses Node's built-in fetch (Node >= 18).
+import dns from 'node:dns'
 
 const INIT_BODY = JSON.stringify({
   jsonrpc: '2.0',
@@ -105,4 +106,40 @@ export async function checkKey(url, key, opts = {}) {
     return { valid: false, status: res.status, error: auth?.error || 'rejected' }
   }
   return { valid: null, status: res.status, error: `unexpected HTTP ${res.status}` }
+}
+
+/**
+ * A plain DNS lookup of the endpoint's host, the way an app that doesn't use a proxy resolves it.
+ * The HTTPS probe can succeed through a proxy while this fails; then those apps fail to sign in
+ * with ENOTFOUND even though the endpoint looks up (simular-ai/box-portal#191).
+ */
+export async function lookupHost(url, { lookup = dns.promises.lookup, timeoutMs = 5000 } = {}) {
+  const host = new URL(url).hostname
+  let timer
+  try {
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Object.assign(new Error('timed out'), { code: 'ETIMEOUT' })), timeoutMs)
+    })
+    const { address } = await Promise.race([lookup(host), timeout])
+    return { host, ok: true, address, error: null }
+  } catch (err) {
+    return { host, ok: false, address: null, error: err.code || err.message }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** The proxy the environment names for HTTPS, as `NAME=scheme://host:port`, never its user or password. */
+export function proxyFromEnv(env) {
+  for (const name of ['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'HTTP_PROXY', 'http_proxy']) {
+    const value = env[name]
+    if (!value) continue
+    try {
+      const u = new URL(value)
+      return `${name}=${u.protocol}//${u.host}`
+    } catch {
+      return `${name} (set)`
+    }
+  }
+  return null
 }

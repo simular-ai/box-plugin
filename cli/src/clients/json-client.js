@@ -44,6 +44,10 @@ export function jsonClient(spec) {
       return spec.file(ctx)
     },
 
+    writes(ctx) {
+      return [spec.file(ctx)]
+    },
+
     status(ctx) {
       const file = spec.file(ctx)
       const map = servers(ctx)

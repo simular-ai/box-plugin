@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from '../src/args.js'
 import { mcpUrl, maskKey, isOldUrl, isOurUrl, DEFAULT_MCP_URL, EXAMPLE_PROMPTS } from '../src/constants.js'
-import { parseWwwAuthenticate, probeEndpoint, checkKey } from '../src/probe.js'
+import { parseWwwAuthenticate, probeEndpoint, checkKey, lookupHost, proxyFromEnv } from '../src/probe.js'
 import { runDoctor } from '../src/cli.js'
 import { sandbox } from './helpers.js'
 import fs from 'node:fs'
@@ -81,6 +81,7 @@ test('doctor: flags a stale URL, a legacy server and a rejected key, with fixes'
   const report = await runDoctor(sb.ctx, {}, {
     probe: async (url) => ({ url, ok: true, status: 401 }),
     check: async () => ({ valid: false, status: 401, error: 'invalid_token' }),
+    resolve: async (url) => ({ host: new URL(url).hostname, ok: true, address: '203.0.113.1', error: null }),
   })
   const cursor = report.clients.find((c) => c.id === 'cursor')
   assert.equal(cursor.ok, false)
@@ -188,4 +189,69 @@ test('real CLI: a config it may not write gets a clear message (and the Codex ap
   } finally {
     fs.chmodSync(path.join(sb.home, '.codex'), 0o700)
   }
+})
+
+// simular-ai/box-portal#179: inside Codex's sandbox ~/.codex is read-only. Say so at once, with the command to run instead.
+test('real CLI: in an agent sandbox, an unwritable config fails fast with the command to run in a normal terminal', { skip: (process.platform === 'win32' || process.getuid?.() === 0) && 'needs POSIX permissions and a non-root user' }, () => {
+  const sb = sandbox()
+  sb.write('.codex/config.toml', 'model = "gpt-5"\n')
+  fs.chmodSync(path.join(sb.home, '.codex'), 0o500)
+  try {
+    const started = Date.now()
+    const res = run(['connect', '--client', 'codex', '--yes'], sb, { CODEX_SANDBOX: 'seatbelt' })
+    assert.ok(Date.now() - started < 10000, 'fails fast')
+    assert.notEqual(res.status, 0)
+    const out = res.stdout + res.stderr
+    const lines = res.stdout.split('\n').filter((l) => /\w/.test(l))
+    assert.match(lines[0], /box -> /)
+    assert.match(lines[1], /Codex: setting up box/, 'a progress line comes right after the intro')
+    assert.match(out, /can't write .*config\.toml \(EACCES\)/)
+    assert.match(out, /This looks like an AI agent's sandbox .*Run this command in a normal terminal instead: npx -y @simular-ai\/box connect --client codex --yes/)
+    assert.ok(!out.includes('Add server'), "no Codex app steps: they don't help inside the sandbox")
+    assert.equal(sb.read('.codex/config.toml'), 'model = "gpt-5"\n')
+  } finally {
+    fs.chmodSync(path.join(sb.home, '.codex'), 0o700)
+  }
+})
+
+// simular-ai/box-portal#191: doctor's HTTPS check can work through a proxy while the apps' own DNS lookup fails.
+test('doctor: flags a DNS lookup that fails while the HTTPS check works (a proxy), without the proxy password', async () => {
+  const sb = sandbox({ env: { HTTPS_PROXY: 'http://user:s3cret@127.0.0.1:3128' } })
+  const report = await runDoctor(sb.ctx, {}, {
+    probe: async (url) => ({ url, ok: true, status: 401 }),
+    resolve: async (url) => ({ host: new URL(url).hostname, ok: false, address: null, error: 'ENOTFOUND' }),
+  })
+  assert.equal(report.ok, false)
+  assert.deepEqual(report.dns, { host: 'mcp.box.simular.ai', ok: false, address: null, error: 'ENOTFOUND', proxy: 'HTTPS_PROXY=http://127.0.0.1:3128', proxiedOnly: true })
+  assert.ok(!JSON.stringify(report).includes('s3cret'))
+  assert.equal(proxyFromEnv({}), null)
+})
+
+test('lookupHost: a plain lookup of the endpoint host; failures and timeouts come back as codes', async () => {
+  assert.deepEqual(await lookupHost('https://mcp.box.simular.ai/mcp', { lookup: async (h) => ({ address: h === 'mcp.box.simular.ai' ? '203.0.113.1' : '' }) }), { host: 'mcp.box.simular.ai', ok: true, address: '203.0.113.1', error: null })
+  const notFound = await lookupHost('https://mcp.box.simular.ai/mcp', { lookup: async () => { throw Object.assign(new Error('x'), { code: 'ENOTFOUND' }) } })
+  assert.equal(notFound.error, 'ENOTFOUND')
+  const slow = await lookupHost('https://mcp.box.simular.ai/mcp', { lookup: () => new Promise(() => {}), timeoutMs: 20 })
+  assert.equal(slow.error, 'ETIMEOUT')
+})
+
+test('real CLI: doctor prints its first line, then names a failed DNS lookup', () => {
+  const sb = sandbox()
+  const res = run(['doctor', '--client', 'cursor'], sb, { BOX_MCP_URL: 'https://box-doctor-test.invalid/mcp' })
+  assert.notEqual(res.status, 0)
+  assert.match(res.stdout, /box doctor/)
+  assert.match(res.stdout, /DNS: this computer can't look up box-doctor-test\.invalid \(ENOTFOUND\)/)
+})
+
+// simular-ai/box-portal#195, end to end: one message, not the generic "file may belong to another user".
+test('real CLI: connect --client openclaw while OpenClaw holds its lock prints one quit-then-run message', { skip: process.platform === 'win32' && 'fake CLIs are shebang scripts' }, async () => {
+  const { FAKE_OPENCLAW } = await import('./helpers.js')
+  const locked = FAKE_OPENCLAW.replace("else if (a[0] === 'mcp' && a[1] === 'set') {", "else if (a[0] === 'mcp' && a[1] === 'set') { console.error('Error: config is locked by a running OpenClaw session'); process.exit(1) }\nelse if (false) {")
+  const sb = sandbox({ bins: { openclaw: locked } })
+  const res = run(['connect', '--client', 'openclaw', '--yes'], sb)
+  assert.notEqual(res.status, 0)
+  const out = res.stdout + res.stderr
+  assert.match(out, /OpenClaw is running and holds its config lock.*Type `\/exit` to quit OpenClaw/)
+  assert.ok(!out.includes('could not change'), 'no generic permission advice')
+  assert.ok(!out.includes('Use box to open Chrome'), 'no example prompts: nothing was set up')
 })

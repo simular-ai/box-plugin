@@ -20,6 +20,26 @@ export function exists(file) {
 }
 
 /**
+ * Throws (with the fs error's code: EACCES, EPERM, EROFS) when `file` could not be written the way
+ * writeAtomic writes it: the file itself if it exists, and the nearest existing folder above it,
+ * where the temp file is created. Lets connect fail before it starts rather than half way.
+ */
+export function assertWritable(file) {
+  const target = exists(file) ? fs.realpathSync(file) : file
+  let dir = path.dirname(target)
+  while (!exists(dir) && path.dirname(dir) !== dir) dir = path.dirname(dir)
+  for (const p of exists(target) ? [target, dir] : [dir]) {
+    try {
+      fs.accessSync(p, fs.constants.W_OK)
+    } catch (err) {
+      const e = new Error(`can't write ${file} (${err.code === 'EROFS' ? 'read-only file system' : err.code})`)
+      e.code = err.code
+      throw e
+    }
+  }
+}
+
+/**
  * Copy `file` to `file.box-backup-<timestamp>` before we change it. Returns the backup path,
  * or null when there was nothing to back up.
  */

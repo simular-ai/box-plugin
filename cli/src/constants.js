@@ -65,6 +65,13 @@ export const WATCH_URL = 'https://box.simular.ai/box'
 export const INSTALL_URL = 'https://box.simular.ai/install'
 export const SUPPORT_EMAIL = 'support@simular.ai'
 
+/** The connect command to run again by hand, keeping BOX_MCP_URL and --name when they were used. */
+export function connectCommand(ctx, clientId) {
+  const env = ctx.url !== DEFAULT_MCP_URL ? `BOX_MCP_URL=${ctx.url} ` : ''
+  const name = ctx.name !== SERVER_NAME ? ` --name ${ctx.name}` : ''
+  return `${env}npx -y @simular-ai/box connect --client ${clientId}${name} --yes`
+}
+
 // Shown after a successful connect, word for word. They start with "Use box to" so the model reads
 // "box" as this tool, not a layout box or Box.com. Keep in sync with box-portal
 // src/docs/content/mcp.md ("Once box is connected, try asking your AI"; the first one is

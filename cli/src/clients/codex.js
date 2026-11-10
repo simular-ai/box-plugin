@@ -16,8 +16,8 @@ const ourLegacy = (ctx, map) => LEGACY_SERVER_NAMES.filter((n) => map[n] && ctx.
 
 // The Codex app (ChatGPT desktop) reads the same config.toml but ships no `codex` on PATH.
 function signInHint(ctx) {
-  if (ctx.which('codex')) return `Run \`codex mcp login ${ctx.name}\`, sign in in the browser and click Approve.`
-  return `Restart the Codex app, open Settings -> MCP servers and click Authenticate next to ${ctx.name}; sign in in the browser and click Approve.`
+  if (ctx.which('codex')) return `Run \`codex mcp login ${ctx.name}\`, sign in in the browser and click Allow.`
+  return `Restart the Codex app, open Settings -> MCP servers and click Authenticate next to ${ctx.name}; sign in in the browser and click Allow.`
 }
 
 export default {
@@ -33,6 +33,8 @@ export default {
   },
 
   configLocation: file,
+  /** Files connect writes itself, checked before anything changes. */
+  writes: (ctx) => [file(ctx)],
 
   status(ctx) {
     const f = file(ctx)
@@ -70,7 +72,7 @@ export default {
   permissionHelp(ctx) {
     return [
       `If the Codex app holds the file, add box there instead: Settings -> MCP servers -> Add server, name it ${ctx.name}, choose Streamable HTTP, paste ${ctx.url} as the URL and click Save.`,
-      `Restart Codex, then click Authenticate next to ${ctx.name}, sign in in the browser and click Approve.`,
+      `Restart Codex, then click Authenticate next to ${ctx.name}, sign in in the browser and click Allow.`,
     ]
   },
 

@@ -12,5 +12,10 @@ export default jsonClient({
   entry: (ctx) => ({ url: ctx.url }),
   bins: ['cursor', 'agent', 'cursor-agent'],
   dirs: (ctx) => [path.join(ctx.home, '.cursor'), ...(ctx.platform === 'darwin' ? ['/Applications/Cursor.app'] : [])],
-  next: (ctx) => [`Open Cursor Settings -> MCP (Tools & MCP) and click Login next to ${ctx.name}; sign in and click Approve.`],
+  // ~/.cursor/mcp.json is shared by the editor and its command line (cursor-agent, also `agent`),
+  // which has no Settings screen, so both get a step.
+  next: (ctx) => [
+    `In the editor: open Customize in the left sidebar (or Cursor Settings -> Open Customize), choose MCPs and click Authenticate next to ${ctx.name}; sign in and click Allow. Older versions: Cursor Settings -> Tools & MCP -> Login.`,
+    `In the cursor-agent command line (also \`agent\`): run \`cursor-agent mcp login ${ctx.name}\`, sign in and click Allow, then start a new cursor-agent session.`,
+  ],
 })
