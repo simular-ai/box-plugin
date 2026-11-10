@@ -22,7 +22,7 @@ This folder is a portable Agent Plugins v1 package (`plugin.json`, `mcp.json`, `
 
    You can also install it from the Plugins page in the Hermes dashboard or desktop app. The catalog pins a reviewed commit of this folder. The plugin is named `simular-box` so it isn't confused with Box, the cloud-files company. box's tools show up from the `box` server, and the `box` skill tells the agent how to use them.
 
-   If `hermes plugins install simular-box` says there is no such entry, your Hermes hasn't fetched the new catalog yet (it refreshes every few hours). Try again later, or copy the folder by hand:
+   If `hermes plugins install simular-box` says there is no such entry, your Hermes can't read the current catalog: Hermes from before 10 Nov 2026 rejects the catalog file because it grew past 2 MB. Run `hermes update` and try again, or copy the folder by hand:
 
    ```bash
    git clone https://github.com/simular-ai/box-plugin /tmp/box-plugin
