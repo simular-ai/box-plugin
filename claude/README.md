@@ -21,18 +21,18 @@ Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` 
 
 ## Offload: move a coding task into your box and back
 
-Going offline in the middle of a task? In Claude Code with the plugin, `/simular-box:offload` hands the task to a fresh Claude Code (or Codex) session in your box, which keeps working while you are away; `/simular-box:back` brings its commits and its written hand-over home and merges them. Any other agent or a plain terminal uses `npx @simular-ai/box@1.1.1 offload` and `npx @simular-ai/box@1.1.1 back`. Setup and details: [the CLI's README](https://www.npmjs.com/package/@simular-ai/box).
+Going offline in the middle of a task? In Claude Code with the plugin, `/simular-box:offload` hands the task to a fresh Claude Code (or Codex) session in your box, which keeps working while you are away; `/simular-box:back` brings its commits and its written hand-over home and merges them. Any other agent or a plain terminal uses `npx @simular-ai/box@1.2.1 offload` and `npx @simular-ai/box@1.2.1 back`. Setup and details: [the CLI's README](https://www.npmjs.com/package/@simular-ai/box).
 
 Nothing leaves your computer until you run `/simular-box:offload` yourself.
 
 ### What `/simular-box:offload` runs
 
-- **One npx package, pinned to an exact version:** `npx -y @simular-ai/box@1.1.1`, the `simular-box` CLI, built and released by Simular from [simular-ai/box-cli](https://github.com/simular-ai/box-cli) and published to npm as [`@simular-ai/box`](https://www.npmjs.com/package/@simular-ai/box). The pin is exact, never a range, so what runs is the version this plugin was reviewed with.
+- **One npx package, pinned to an exact version:** `npx -y @simular-ai/box@1.2.1`, the `simular-box` CLI, built and released by Simular from [simular-ai/box-cli](https://github.com/simular-ai/box-cli) and published to npm as [`@simular-ai/box`](https://www.npmjs.com/package/@simular-ai/box). The pin is exact, never a range, so what runs is the version this plugin was reviewed with.
 - **Claude's steps** (from `skills/box-offload/SKILL.md`):
-  1. Write a hand-over to the file `npx -y @simular-ai/box@1.1.1 offload handover-path` prints, from a fixed template: goal, decisions, files touched, next steps, commands. Secrets go in by name only, never by value.
-  2. Run `npx -y @simular-ai/box@1.1.1 offload --kind claude` in your repo. The CLI does every step that follows; the skill tells Claude never to copy files or secrets itself.
+  1. Write a hand-over to the file `npx -y @simular-ai/box@1.2.1 offload handover-path` prints, from a fixed template: goal, decisions, files touched, next steps, commands. Secrets go in by name only, never by value.
+  2. Run `npx -y @simular-ai/box@1.2.1 offload --kind claude` in your repo. The CLI does every step that follows; the skill tells Claude never to copy files or secrets itself.
 - **Checks before anything is sent.** The CLI stops, and sends nothing, when the folder is not a git repo, `rsync` is missing, this repo already has an offload in progress, the box's image is too old, or the task needs macOS. It warns, and goes on only after you say yes, when you have untracked files, a `.env` file stays behind, the hand-over names secrets you have not opted in, the code reads environment variables set here but not in the box, the repo uses Git LFS or submodules, it calls local services or VPN-only hosts, or the copy is over 500 MB.
-- **Sign-in:** the CLI uses your box account (`npx -y @simular-ai/box@1.1.1 login`, in the browser). Its token is kept in the macOS Keychain, or on Linux in `~/.simular-box/credentials.json` with mode 0600.
+- **Sign-in:** the CLI uses your box account (`npx -y @simular-ai/box@1.2.1 login`, in the browser). Its token is kept in the macOS Keychain, or on Linux in `~/.simular-box/credentials.json` with mode 0600.
 
 ### What gets uploaded from your repo
 
@@ -57,15 +57,15 @@ Into your own box, the cloud computer of the box account you signed in with, at 
 
 ### How secrets are handled
 
-- **Opt-in only, per repo, by you.** You run `npx -y @simular-ai/box@1.1.1 offload secrets add <entry>` yourself; the skill tells Claude never to opt one in on its own. The entries are `file:<path in the repo>` (for example `file:.env`), `aws` (`~/.aws/credentials`), `kube` (your kubeconfig), `gcloud` (`~/.config/gcloud`, without its logs) and `ssh:<key>` (`~/.ssh/<key>`). Your opt-ins are kept as names and paths only, never values, in `~/.simular-box/offload/repos.json` (mode 0600).
+- **Opt-in only, per repo, by you.** You run `npx -y @simular-ai/box@1.2.1 offload secrets add <entry>` yourself; the skill tells Claude never to opt one in on its own. The entries are `file:<path in the repo>` (for example `file:.env`), `aws` (`~/.aws/credentials`), `kube` (your kubeconfig), `gcloud` (`~/.config/gcloud`, without its logs) and `ssh:<key>` (`~/.ssh/<key>`). Your opt-ins are kept as names and paths only, never values, in `~/.simular-box/offload/repos.json` (mode 0600).
 - **In the box, secrets live in memory only:** a tmpfs at `/run/cocoonbox-offload` (mode 0700, owned by the box user, never written to disk and never part of a box snapshot). A file secret is linked into the copy from there; `aws`, `kube` and `gcloud` are handed to the box agent as `AWS_SHARED_CREDENTIALS_FILE`, `KUBECONFIG` and `CLOUDSDK_CONFIG`; ssh keys are loaded into an ssh-agent and their files deleted.
 - **Wiped** when you bring the task back, when an offload fails, and when the next offload of the repo starts.
 
 ### How permissions work on the box
 
 - The agent in the box runs with permission prompts off: `claude --dangerously-skip-permissions` (Codex: `--dangerously-bypass-approvals-and-sandbox`), so it can keep working while you are away. Claude tells you this when the offload finishes.
-- What it can reach is the box itself: a separate cloud computer, not yours. It holds the repo copy, the secrets you opted in for this repo, the box CLI's own sign-in (`npx -y @simular-ai/box@1.1.1 offload sign-in --kind claude`, done by you once per box), and whatever you signed in to in the box's browser. Opt in only the secrets the task needs.
-- You can watch it, answer its questions and stop it: `npx -y @simular-ai/box@1.1.1 offload inbox` shows what it posted, `offload send "<answer>"` answers, `offload status` shows whether it is working, and offload prints an `rsh -t … tmux attach` line to watch its terminal. You can also watch the box's screen at https://box.simular.ai/box.
+- What it can reach is the box itself: a separate cloud computer, not yours. It holds the repo copy, the secrets you opted in for this repo, the box CLI's own sign-in (`npx -y @simular-ai/box@1.2.1 offload sign-in --kind claude`, done by you once per box), and whatever you signed in to in the box's browser. Opt in only the secrets the task needs.
+- You can watch it, answer its questions and stop it: `npx -y @simular-ai/box@1.2.1 offload inbox` shows what it posted, `offload send "<answer>"` answers, `offload status` shows whether it is working, and offload prints an `rsh -t … tmux attach` line to watch its terminal. You can also watch the box's screen at https://box.simular.ai/box.
 
 ## Adding an agent
 
