@@ -216,7 +216,7 @@ export class GitRepo {
       const patch = this.#diff(from, to)
       if (patch.length && this.run(['apply', '--binary', '--whitespace=nowarn', '-'], { input: patch }).status !== 0) return false
       if (move && lock) {
-        if (move.old) this.git(['update-ref', `refs/cocoonbox/pre-back/${id}`, move.old])
+        if (move.old) this.git(['update-ref', `refs/box/pre-back/${id}`, move.old])
         const sym = this.run(['symbolic-ref', '-q', 'HEAD'])
         const ref = sym.status === 0 && sym.text ? [sym.text] : ['--no-deref', 'HEAD']
         this.git(['update-ref', '-m', 'box back', ...ref, move.new, ...(move.old ? [move.old] : [])])
@@ -242,7 +242,7 @@ export class GitRepo {
 
   #branch(box, conflicts, now) {
     const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
-    const name = `cocoonbox/back-${stamp}`
+    const name = `box/back-${stamp}`
     this.git(['branch', '-f', name, box])
     return { kind: 'branch', branch: name, conflicts }
   }
