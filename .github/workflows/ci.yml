@@ -23,6 +23,7 @@ on:
       - 'dsh/**'
       - 'hermes/**'
       - 'openclaw/**'
+      - 'grok/**'
       - '.claude-plugin/**'
       - '.github/workflows/ci.yml'
   push:
@@ -94,6 +95,13 @@ jobs:
           if [ ! -d hermes ]; then echo "no hermes/ folder on this ref; skipped"; exit 0; fi
           export HOME="$(mktemp -d)"
           hermes plugins validate ./hermes
+      - name: Grok Build plugin
+        run: |
+          set -euo pipefail
+          if [ ! -d grok ]; then echo "no grok/ folder on this ref; skipped"; exit 0; fi
+          export HOME="$(mktemp -d)"
+          curl -fsSL https://x.ai/cli/install.sh | bash -s "$(node -p "require('./e2e/clients.json').grok.version")"
+          "$HOME/.grok/bin/grok" plugin validate ./grok
       - name: OpenClaw plugin
         run: |
           set -euo pipefail
