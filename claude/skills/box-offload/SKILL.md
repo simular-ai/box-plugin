@@ -5,7 +5,7 @@ description: Hand this coding task to an agent in the user's box (their cloud co
 
 The agent in the box starts fresh. It knows only what your hand-over says, plus the repo.
 Write the hand-over as if for a capable engineer who has never seen this conversation.
-`box` below is `npx -y @simular-ai/box@1.0.0`. Run it in the repo the user works in. It does every
+`box` below is `npx -y @simular-ai/box@1.2.1`. Run it in the repo the user works in. It does every
 mechanical step: never copy files or secrets yourself, never print a secret, never edit the
 files it writes.
 The CLI prints follow-up commands as `simular-box ...`; that name is not on PATH under npx, so
@@ -18,8 +18,11 @@ when you pass one to the user, write it with `box` (the npx command above) inste
    prints, with the template below. Fill every section; write "none" for an empty one. Be
    concrete: exact commands, versions you saw, file paths, error messages, decisions with
    their reasons. Under "Secrets needed" give names only, never values.
-3. Run `box offload --kind claude` (or the CLI the user asked for in the box:
-   `codex`, `cursor`). Add `--box NAME` when the user names a box.
+3. Offload copies only what git tracks; untracked and git-ignored files stay on this
+   computer. Stage the new files this task made that the box needs with `git add <path>`
+   (stage only, never commit, and never stage a secret such as a `.env` or a key file).
+4. Run `box offload --kind claude` (or `--kind codex` when the user asks for Codex in the
+   box). Add `--box NAME` when the user names a box.
    - "not signed in": ask the user to run `box login` in their terminal (it opens the
      browser), then run offload again.
    - Exit 4 is a refused sign-in (expired or revoked): ask the user to run `box login`, then
@@ -29,13 +32,14 @@ when you pass one to the user, write it with `box` (the npx command above) inste
      `box offload install-cli --kind <K>` and then `box offload sign-in --kind <K>`
      (the sign-in asks them to approve in the browser and paste a code, so you cannot do it).
    - Exit 5 is warnings: tell the user each one, and run again with `--yes` only when they
-     agree, or said beforehand to go ahead.
+     agree, or said beforehand to go ahead. For untracked files it names, ask whether any
+     should go; stage only those, then run again.
    - For a secret it warns about, ask the user; only they opt one in
      (`box offload secrets add file:.env`). Never opt in on your own.
-4. When it prints `offloaded`, tell the user the box, that its agent runs with permission
-   prompts bypassed, and that `/box:back` returns the work. End your turn and make no more
+5. When it prints `offloaded`, tell the user the box, that its agent runs with permission
+   prompts bypassed, and that `/simular-box:back` returns the work. End your turn and make no more
    changes to this repo.
-5. On exit 1, report its last line. Nothing changed on this computer; do not retry by hand.
+6. On exit 1, report its last line. Nothing changed on this computer; do not retry by hand.
 
 While the task is in the box, `box offload inbox` shows what the box agent posted
 (progress, questions), `box offload send "<answer>"` answers it, and
