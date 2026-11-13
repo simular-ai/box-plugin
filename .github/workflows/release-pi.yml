@@ -5,7 +5,7 @@ name: Release Pi package
 # Cutting a release: bump "version" in pi/package.json, merge to main, then
 #   git tag pi-v<X.Y.Z> && git push origin pi-v<X.Y.Z>
 #
-# Auth: npm trusted publishing (OIDC), same as publish-cli.yml. Requires the trusted-publisher
+# Auth: npm trusted publishing (OIDC). Requires the trusted-publisher
 # config on npmjs.com (package @simular-ai/box-pi -> Settings -> Trusted Publisher): organization
 # "simular-ai", repository "box-plugin", workflow filename "release-pi.yml", environment "npm".
 # npm only lets you configure it on a package that already exists, so the first version is

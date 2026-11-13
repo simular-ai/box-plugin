@@ -2,7 +2,8 @@ name: CI
 
 # Checks this repo's plugins and the box CLI they use, against real clients. The CLI itself is the
 # Rust simular-box, built and published to npm as @simular-ai/box from simular-ai/box-cli; this
-# repo publishes nothing to npm (the old JavaScript CLI that lived in cli/ was retired).
+# repo publishes no CLI to npm (the old JavaScript CLI that lived in cli/ was retired); the Pi
+# package in pi/ is published by release-pi.yml on a pi-v* tag.
 #
 # Every non-draft PR that touches a plugin folder or e2e/ runs:
 #   plugins  each agent's own validator over the plugin folders, and the Claude plugin's CLI pin
@@ -101,7 +102,7 @@ jobs:
           if [ ! -d pi ]; then echo "no pi/ folder on this ref; skipped"; exit 0; fi
           npm pack ./pi --dry-run
           export HOME="$(mktemp -d)"
-          npm install -g "$(node -p "require('./cli/e2e/clients.json').pi.npm")"
+          npm install -g "$(node -p "require('./e2e/clients.json').pi.npm")"
           pi install ./pi
           # The package's extension registers box; with no sign-in yet Pi reports it as needing one,
           # which proves the server is registered and reachable. No model or key is needed.
