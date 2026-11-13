@@ -6,6 +6,7 @@
   "gemini-cli": { "npm": "@google/gemini-cli@0.66.0" },
   "openclaw": { "npm": "openclaw@2026.11.1" },
   "hermes": { "git": "https://github.com/NousResearch/hermes-agent", "tag": "v0.22.6" },
+  "pi": { "npm": "@earendil-works/pi-coding-agent@1.5.0" },
   "grok": { "version": "1.0.70" },
   "cursor": { "cursorAgent": "2026.10.22-27dcf5f" }
 }
