@@ -1,0 +1,13 @@
+{
+  "name": "box-plugin-e2e",
+  "private": true,
+  "description": "End-to-end checks of the box CLI (simular-ai/box-cli) and this repo's plugins against real, installed clients.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "cross-spawn": "7.0.6"
+  }
+}

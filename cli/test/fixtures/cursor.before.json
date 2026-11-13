@@ -1,7 +1,0 @@
-{
-  // Cursor servers the user already has
-  "mcpServers": {
-    "github": { "url": "https://api.githubcopilot.com/mcp/" },
-    "box-control": { "url": "https://relay.simular.cloud/control" },
-  },
-}
