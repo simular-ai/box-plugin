@@ -1,53 +1,69 @@
-// Layer 1: run the real CLI against a real, installed client in an isolated HOME.
+// Layer 1: run the real box CLI against a real, installed client in an isolated HOME.
 //   node e2e/install-matrix.mjs <client>
-// Seeds an unrelated server and a box set up at box's old address (relay.simular.cloud), runs
-// `connect --client <client> --yes`, checks that it moved box to the current URL and said so, checks
-// with the client's own listing command that box is there, re-runs connect (must change nothing),
-// runs `doctor`, then `remove`, and checks that the unrelated server survived. No secrets, no sign-in.
+// The CLI is the Rust simular-box at the version the Claude plugin pins (see cli.mjs; BOX_CLI
+// overrides it). Seeds an unrelated server and a box set up at box's old address
+// (relay.simular.cloud), runs `connect --client <client> --yes`, checks that it moved box to the
+// current URL and said so, checks with the client's own listing command that box is there,
+// re-runs connect (must change nothing), runs `doctor`, then `remove`, and checks that the
+// unrelated server survived. No secrets, no sign-in.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import spawn from 'cross-spawn'
 import { isolatedEnv } from './isolated-env.mjs'
-import { createContext } from '../src/context.js'
-import { findClient } from '../src/clients/index.js'
+import { REPO, boxCommand, which } from './cli.mjs'
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'simular-box.js')
 const URL_RE = /mcp\.box\.simular\.ai\/mcp/
 const OLD_URL = 'https://relay.simular.cloud/mcp'
-const REPO = path.join(path.dirname(CLI), '..', '..')
 const id = process.argv[2]
-const client = findClient(id)
-if (!client) throw new Error(`unknown client ${id}`)
 
 const { home, env } = isolatedEnv()
-if (client.id === 'codex' && process.platform === 'win32') {
+if (id === 'codex' && process.platform === 'win32') {
   // On Windows, Codex finds the home folder through the OS profile API, not USERPROFILE, so a
   // temp HOME alone would point it at the runner's real profile. CODEX_HOME is its own override,
   // which the CLI honours too.
   env.CODEX_HOME = path.join(home, '.codex')
   fs.mkdirSync(env.CODEX_HOME, { recursive: true })
 }
-const ctx = createContext({ env })
 console.log(`isolated HOME: ${home}`)
 
-function sh(bin, args, { allowFail = false, timeout = 180000 } = {}) {
+// Where each client keeps its MCP servers, as the CLI reads them (only the ones seeded by hand).
+const CLIENTS = {
+  'claude-code': { name: 'Claude Code' },
+  codex: { name: 'Codex', config: () => path.join(env.CODEX_HOME || path.join(home, '.codex'), 'config.toml') },
+  opencode: { name: 'OpenCode', config: () => path.join(env.XDG_CONFIG_HOME, 'opencode', 'opencode.json') },
+  openclaw: { name: 'OpenClaw' },
+  hermes: {
+    name: 'Hermes Agent',
+    config: () => path.join(process.platform === 'win32' ? path.join(env.LOCALAPPDATA, 'hermes') : path.join(home, '.hermes'), 'config.yaml'),
+  },
+  'gemini-cli': { name: 'Gemini CLI', config: () => path.join(home, '.gemini', 'settings.json') },
+  cursor: { name: 'Cursor', config: () => path.join(home, '.cursor', 'mcp.json') },
+}
+const client = CLIENTS[id] && { id, ...CLIENTS[id] }
+if (!client) throw new Error(`unknown client ${id}`)
+
+function sh(bin, args, { allowFail = false, timeout = 180000, stdoutOnly = false } = {}) {
   const res = spawn.sync(bin, args, { env, cwd: home, encoding: 'utf8', timeout })
   const out = `${res.stdout || ''}${res.stderr || ''}`
   console.log(`$ ${bin} ${args.join(' ')}  (exit ${res.status})\n${out.trim().split('\n').map((l) => `  ${l}`).join('\n')}`)
   if (!allowFail && res.status !== 0) throw new Error(`${bin} ${args.join(' ')} failed with exit ${res.status}`)
-  return out
+  return stdoutOnly ? res.stdout || '' : out
 }
-const box = (...args) => sh(process.execPath, [CLI, ...args])
+const [boxBin, ...boxArgs] = boxCommand(env)
+const box = (...args) => sh(boxBin, [...boxArgs, ...args])
+const boxJson = (...args) => JSON.parse(sh(boxBin, [...boxArgs, ...args], { stdoutOnly: true }))
 const writeJson = (file, value) => {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, JSON.stringify(value, null, 2))
 }
 
-// Claude Code: install the plugin as it was before the move from a git marketplace built from this
-// checkout (so the job tests this branch's plugin, not main's), then push this branch's plugin to
-// it, as a merge to main would. connect must then update the marketplace and the plugin. A fake
+// Claude Code: install the plugin as it was before the move and the rename (named `box`, at the old
+// URL) from a git marketplace built from this checkout (so the job tests this branch's plugin, not
+// main's), then push this branch's plugin to it, as a merge to main would. connect must then end
+// with only simular-box@simular-box installed: Claude Code moves box@simular-box to it through the
+// marketplace's renames map, and connect uninstalls an old box@simular-box that is left. A fake
 // https URL is mapped to the local repo with git's url.<base>.insteadOf, because Claude Code adds
 // git marketplaces only from https URLs.
 const FAKE_MARKETPLACE = 'https://box-plugin.invalid/box-plugin.git'
@@ -62,7 +78,10 @@ function seedOldClaudePlugin() {
   const mcp = path.join(work, 'claude', '.mcp.json')
   fs.writeFileSync(mcp, fs.readFileSync(mcp, 'utf8').replace(URL_RE, 'relay.simular.cloud/mcp'))
   const manifest = path.join(work, 'claude', '.claude-plugin', 'plugin.json')
-  fs.writeFileSync(manifest, JSON.stringify({ ...JSON.parse(fs.readFileSync(manifest, 'utf8')), version: '0.0.1' }, null, 2))
+  fs.writeFileSync(manifest, JSON.stringify({ ...JSON.parse(fs.readFileSync(manifest, 'utf8')), name: 'box', version: '0.0.1' }, null, 2))
+  const market = path.join(work, '.claude-plugin', 'marketplace.json')
+  const m = JSON.parse(fs.readFileSync(market, 'utf8'))
+  fs.writeFileSync(market, JSON.stringify({ ...m, plugins: m.plugins.map((p) => ({ ...p, name: 'box' })) }, null, 2))
   sh('git', ['init', '--quiet', '--initial-branch', 'main', work])
   git('add', '-A')
   git('commit', '--quiet', '-m', 'before the move')
@@ -98,7 +117,7 @@ const ADAPTERS = {
       seedOldClaudePlugin()
     },
     list: () => sh('claude', ['mcp', 'list']),
-    present: (out) => /plugin:box:box/.test(out) && URL_RE.test(out),
+    present: (out) => /plugin:simular-box:box/.test(out) && URL_RE.test(out),
     needsAuth: /needs authentication/i,
     otherKept: (out) => /\bother\b/.test(out),
   },
@@ -107,7 +126,7 @@ const ADAPTERS = {
     seed: () => {
       sh('codex', ['mcp', 'add', 'other', '--', 'npx', '-y', 'other-mcp'])
       // `codex mcp add --url` would start the sign-in, so the old entry is written by hand.
-      fs.appendFileSync(client.configLocation(ctx), `\n[mcp_servers.box]\nurl = "${OLD_URL}"\n`)
+      fs.appendFileSync(client.config(), `\n[mcp_servers.box]\nurl = "${OLD_URL}"\n`)
     },
     list: () => sh('codex', ['mcp', 'list']),
     present: (out) => /^box\s+https:\/\/mcp\.box\.simular\.ai\/mcp/m.test(out),
@@ -117,7 +136,7 @@ const ADAPTERS = {
   opencode: {
     bin: 'opencode',
     seed: () =>
-      writeJson(client.configLocation(ctx), {
+      writeJson(client.config(), {
         $schema: 'https://opencode.ai/config.json',
         mcp: { other: { type: 'remote', url: 'https://example.com/mcp', enabled: false }, box: { type: 'remote', url: OLD_URL, enabled: true } },
       }),
@@ -139,7 +158,7 @@ const ADAPTERS = {
   hermes: {
     bin: 'hermes',
     seed: () => {
-      const file = client.configLocation(ctx)
+      const file = client.config()
       fs.mkdirSync(path.dirname(file), { recursive: true })
       fs.writeFileSync(file, `# seeded by the e2e test\nmcp_servers:\n  other:\n    command: npx\n    args: [-y, other-mcp]\n    enabled: false\n  box:\n    url: ${OLD_URL}\n    auth: oauth\n`)
     },
@@ -149,7 +168,7 @@ const ADAPTERS = {
   },
   'gemini-cli': {
     bin: 'gemini',
-    seed: () => writeJson(client.configLocation(ctx), { mcpServers: { other: { httpUrl: 'https://example.com/mcp' }, box: { type: 'http', url: OLD_URL } } }),
+    seed: () => writeJson(client.config(), { mcpServers: { other: { httpUrl: 'https://example.com/mcp' }, box: { type: 'http', url: OLD_URL } } }),
     // The isolated HOME is not a trusted folder, so Gemini lists the servers as Disabled and
     // never connects; the listing still proves it reads our entry as an http server.
     list: () => sh('gemini', ['mcp', 'list']),
@@ -158,7 +177,7 @@ const ADAPTERS = {
   },
   cursor: {
     bin: 'cursor-agent',
-    seed: () => writeJson(client.configLocation(ctx), { mcpServers: { other: { url: 'https://example.com/mcp' }, box: { url: OLD_URL } } }),
+    seed: () => writeJson(client.config(), { mcpServers: { other: { url: 'https://example.com/mcp' }, box: { url: OLD_URL } } }),
     list: () => sh('cursor-agent', ['mcp', 'list']),
     present: (out) => /^box:/m.test(out),
     otherKept: (out) => /^other:/m.test(out),
@@ -167,7 +186,7 @@ const ADAPTERS = {
 
 const a = ADAPTERS[client.id]
 if (!a) throw new Error(`no install-matrix adapter for ${client.id}`)
-if (!ctx.which(a.bin)) throw new Error(`${a.bin} is not on PATH; install the client first`)
+if (!which(a.bin, env)) throw new Error(`${a.bin} is not on PATH; install the client first`)
 
 a.seed()
 let out = box('connect', '--client', client.id, '--yes')
@@ -184,7 +203,7 @@ out = box('connect', '--client', client.id, '--yes')
 assert.match(out, new RegExp(`${client.name}: already set up`), 're-run is a no-op')
 assert.deepEqual(backups(), before, 're-run writes no new backup')
 
-const report = JSON.parse(box('doctor', '--client', client.id, '--json'))
+const report = boxJson('doctor', '--client', client.id, '--json')
 const row = report.clients[0]
 assert.equal(report.endpoint.ok, true, 'prod endpoint answers 401 + metadata')
 assert.equal(row.configured, true)

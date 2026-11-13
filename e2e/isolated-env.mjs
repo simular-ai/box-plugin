@@ -20,6 +20,8 @@ export function isolatedEnv(base = process.env, { keep = [] } = {}) {
     XDG_STATE_HOME: path.join(home, '.local', 'state'),
     XDG_CACHE_HOME: path.join(home, '.cache'),
     NO_COLOR: '1',
+    // npx runs the CLI; keep npm's own notices out of its output.
+    NPM_CONFIG_UPDATE_NOTIFIER: 'false',
     CI: base.CI || '1',
   })
   for (const d of [env.APPDATA, env.LOCALAPPDATA, env.XDG_CONFIG_HOME, env.XDG_DATA_HOME, env.XDG_STATE_HOME, env.XDG_CACHE_HOME]) fs.mkdirSync(d, { recursive: true })
