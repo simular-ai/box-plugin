@@ -1,5 +1,9 @@
 # box by Simular for ChatGPT and Codex
 
+**Live:** [box by Simular in ChatGPT's plugin directory](https://chatgpt.com/plugins/plugin_asdk_app_6af13fd141b48191b8c8fdb9ebd37276), listed "By Simular", version 1.0.0
+(published 2026-11-14). It connects the prod MCP server only, so staging is still added by hand as a
+custom MCP server.
+
 The OpenAI plugin package: one listing covers ChatGPT and Codex. It connects the remote MCP server
 `https://mcp.box.simular.ai/mcp` with OAuth (dynamic client registration) and ships two skills:
 `get-started` (onboarding) and `box` (a copy of `claude/skills/box/SKILL.md`).
