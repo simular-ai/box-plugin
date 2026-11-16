@@ -24,7 +24,7 @@ Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` 
 
 Going offline in the middle of a task? In Claude Code with the plugin, `/simular-box:offload` hands the task to a fresh Claude Code (or Codex) session in your box, which keeps working while you are away; `/simular-box:back` brings its commits and its written hand-over home and merges them. Any other agent or a plain terminal uses `npx @simular-ai/box@1.2.1 offload` and `npx @simular-ai/box@1.2.1 back`. Setup and details: [the CLI's README](https://www.npmjs.com/package/@simular-ai/box).
 
-Nothing leaves your computer until you run `/simular-box:offload` yourself.
+Offload sends nothing until you run `/simular-box:offload` yourself; moving files sends only what you ask Claude to send.
 
 ### What `/simular-box:offload` runs
 

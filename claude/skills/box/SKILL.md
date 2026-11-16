@@ -21,9 +21,9 @@ The box tools act inside the box, and `read_file` reads text only. When the user
 
 - Download a file: `npx -y @simular-ai/box@1.2.1 exec -- cat /home/user/report.pdf > report.pdf`
 - Upload a file: `npx -y @simular-ai/box@1.2.1 exec -c 'cat > /home/user/data.csv' < data.csv`
-- A folder, either way, with rsync. The host is the box's name from `box_list`: `rsync -az -e "npx -y @simular-ai/box@1.2.1 rsh" main:/home/user/out/ ./out/`
+- A folder, either way, with rsync. The host is the box's name from `box_list` (or `npx -y @simular-ai/box@1.2.1 ls`): `rsync -az -e "npx -y @simular-ai/box@1.2.1 rsh" main:/home/user/out/ ./out/`
 
-`exec` uses the first box unless you add `--box <name>`. If the CLI says it isn't signed in, run `npx -y @simular-ai/box@1.2.1 login` and ask the user to allow it in the browser. Without a shell on the user's computer (ChatGPT, Claude on the web) there is no download yet: tell the user the file's path on the box.
+Send only what the user asked for: never a secret (`.env`, keys, credentials) unless the user names that file, and add `--exclude .env` when you rsync a folder up. Don't overwrite a local file without asking; pick a new name instead. `exec` uses the first box unless you add `--box <name>`. If the CLI says it isn't signed in, run `npx -y @simular-ai/box@1.2.1 login` and ask the user to allow it in the browser. Without a shell on the user's computer (ChatGPT, Claude on the web) there is no download yet: tell the user the file's path on the box.
 
 ## Working with the user
 
