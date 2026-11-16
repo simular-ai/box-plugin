@@ -17,13 +17,14 @@ Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` 
 
 - **The box MCP server** (`.mcp.json`): `https://mcp.box.simular.ai/mcp`, over HTTP. You sign in once with OAuth in the browser (`/mcp`, pick `plugin:simular-box:box`, Authenticate); there is no key to paste, and the plugin stores none.
 - **The `box` skill** (`skills/box/SKILL.md`): when to use the box tools and which one fits.
-- **Offload and back** (`commands/offload.md`, `commands/back.md`, `skills/box-offload/SKILL.md`): `/simular-box:offload` and `/simular-box:back`, below. They are the only part of the plugin that runs a program on your computer.
+- **Offload and back** (`commands/offload.md`, `commands/back.md`, `skills/box-offload/SKILL.md`): `/simular-box:offload` and `/simular-box:back`, below. They and moving files (below) are the only parts of the plugin that run a program on your computer.
+- **Moving files** (in `skills/box/SKILL.md`): when you ask Claude to bring a file home from your box or send one to it, Claude runs the same pinned CLI (`npx -y @simular-ai/box@1.2.1 exec` or `rsh`, with `rsync` for folders) in your terminal. It goes only to your own box, over box's API, signed in as you.
 
 ## Offload: move a coding task into your box and back
 
 Going offline in the middle of a task? In Claude Code with the plugin, `/simular-box:offload` hands the task to a fresh Claude Code (or Codex) session in your box, which keeps working while you are away; `/simular-box:back` brings its commits and its written hand-over home and merges them. Any other agent or a plain terminal uses `npx @simular-ai/box@1.2.1 offload` and `npx @simular-ai/box@1.2.1 back`. Setup and details: [the CLI's README](https://www.npmjs.com/package/@simular-ai/box).
 
-Nothing leaves your computer until you run `/simular-box:offload` yourself.
+Offload sends nothing until you run `/simular-box:offload` yourself; moving files sends only what you ask Claude to send.
 
 ### What `/simular-box:offload` runs
 
