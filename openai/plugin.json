@@ -99,7 +99,7 @@
         "commerce": false
       },
       "publication": {
-        "release_notes": "Signing in to box now shows ChatGPT as a verified app (from chatgpt.com) on the consent page. In Codex, your agent can now move files between your box and your computer when you ask."
+        "release_notes": "Signing in to box from ChatGPT now shows that the request comes from chatgpt.com. In Codex, your agent can now move files between your box and your computer when you ask."
       }
     }
   }
