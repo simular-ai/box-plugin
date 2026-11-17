@@ -10,8 +10,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import spawn from 'cross-spawn'
 import { isolatedEnv } from './isolated-env.mjs'
+import { spawnSyncCross } from './spawn.mjs'
 import { REPO, boxCommand, which } from './cli.mjs'
 
 const URL_RE = /mcp\.box\.simular\.ai\/mcp/
@@ -45,7 +45,7 @@ const client = CLIENTS[id] && { id, ...CLIENTS[id] }
 if (!client) throw new Error(`unknown client ${id}`)
 
 function sh(bin, args, { allowFail = false, timeout = 180000, stdoutOnly = false } = {}) {
-  const res = spawn.sync(bin, args, { env, cwd: home, encoding: 'utf8', timeout })
+  const res = spawnSyncCross(bin, args, { env, cwd: home, encoding: 'utf8', timeout })
   const out = `${res.stdout || ''}${res.stderr || ''}`
   console.log(`$ ${bin} ${args.join(' ')}  (exit ${res.status})\n${out.trim().split('\n').map((l) => `  ${l}`).join('\n')}`)
   if (!allowFail && res.status !== 0) throw new Error(`${bin} ${args.join(' ')} failed with exit ${res.status}`)

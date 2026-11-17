@@ -7,8 +7,8 @@ import dns from 'node:dns/promises'
 import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import spawn from 'cross-spawn'
 import { isolatedEnv } from './isolated-env.mjs'
+import { spawnSyncCross } from './spawn.mjs'
 import { boxCommand } from './cli.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -43,7 +43,7 @@ const { env } = isolatedEnv(process.env, { keep: ['BOX_MCP_URL', 'BOX_TOKEN'] })
 const [boxBin, ...boxArgs] = boxCommand(env)
 const scrub = (s) => s.split(key).join('***')
 function sh(bin, args, { allowFail = false, stdoutOnly = false } = {}) {
-  const res = spawn.sync(bin, args, { env, encoding: 'utf8', timeout: 180000 })
+  const res = spawnSyncCross(bin, args, { env, encoding: 'utf8', timeout: 180000 })
   const out = scrub(`${res.stdout || ''}${res.stderr || ''}`)
   console.log(`$ ${bin} ${args.join(' ')}  (exit ${res.status})\n${out.trim().split('\n').map((l) => `  ${l}`).join('\n')}`)
   if (!allowFail && res.status !== 0) throw new Error(`${bin} ${args.join(' ')} failed`)
