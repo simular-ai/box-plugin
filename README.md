@@ -14,6 +14,8 @@ Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` 
 | ChatGPT and Codex (OpenAI plugin directory) | [`openai/`](openai/) | OAuth, once in the browser | Listed by OpenAI after review; build the upload with `openai/build-zip.sh` ([openai/README.md](openai/README.md)) |
 | Pi | [`pi/`](pi/) | OAuth, once in the browser (`/mcp login box`) | `pi install npm:@simular-ai/box-pi` ([pi/README.md](pi/README.md)) |
 | Grok Build | [`grok/`](grok/) | OAuth, once in the browser (`/mcps`, then `i`) | `/marketplace`, find **box**, press `i` ([grok/README.md](grok/README.md)) |
+| Cursor (Cursor Marketplace) | [`cursor/`](cursor/) | OAuth, once in the browser | Listed by Cursor after review; until then install from this repo ([cursor/README.md](cursor/README.md)) |
+| Gemini CLI (extension gallery) | [`gemini-extension.json`](gemini-extension.json) at the repo root, context in [`gemini/`](gemini/) | OAuth, once in the browser | `gemini extensions install https://github.com/simular-ai/box-plugin` |
 
 ## Offload: move a coding task into your box and back
 
@@ -27,6 +29,8 @@ Add a folder named after the agent with its own manifest, MCP config and, where 
 
 - `claude/`: bump `version` in `claude/.claude-plugin/plugin.json`. Claude Code doesn't auto-update third-party marketplaces: users get it with `/plugin marketplace update simular-box` and `/plugin update simular-box@simular-box`, or with `npx @simular-ai/box connect`.
 - `openclaw/`: bump `version` in `openclaw/package.json` and `openclaw/openclaw.plugin.json`, then `npm run build` and `clawhub package publish .` from `openclaw/`.
+- `cursor/`: bump `version` in `cursor/.cursor-plugin/plugin.json`. Cursor re-reads the repo after the first review; a new listing goes through cursor.com/marketplace/publish.
+- Gemini CLI: bump `version` in `gemini-extension.json`. Installs track `main`, and the gallery lists the repo through its `gemini-cli-extension` topic (crawled daily).
 - `dsh/`: bump `version` in `dsh/package.json`, then push a tag `dsh-vX.Y.Z`. The release workflow attaches `dsh-box.tgz`.
 - `openai/`: bump `version` in `openai/plugin.json` and `publication.release_notes`, run `openai/build-zip.sh`, upload the ZIP at platform.openai.com/plugins.
 - `hermes/`: bump `version` in `hermes/plugin.json`, merge, then open a PR to [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) that moves `sha:` (and `version:`) in `plugin-catalog/box.yaml` to the merge commit. Hermes installs only the pinned, reviewed commit.

@@ -1,0 +1,16 @@
+{
+  "name": "simular-box",
+  "owner": {
+    "name": "Simular"
+  },
+  "metadata": {
+    "description": "box by Simular: a cloud computer your agent drives over MCP."
+  },
+  "plugins": [
+    {
+      "name": "simular-box",
+      "source": "cursor",
+      "description": "box by Simular: a cloud computer your agent drives over MCP."
+    }
+  ]
+}

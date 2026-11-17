@@ -1,0 +1,11 @@
+{
+  "name": "simular-box",
+  "version": "0.1.0",
+  "description": "box by Simular: a cloud Linux computer with Chrome and a shell that Gemini drives over MCP. Sign in once in the browser.",
+  "contextFileName": "gemini/GEMINI.md",
+  "mcpServers": {
+    "box": {
+      "httpUrl": "https://mcp.box.simular.ai/mcp"
+    }
+  }
+}

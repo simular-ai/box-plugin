@@ -1,0 +1,13 @@
+{
+  "name": "simular-box",
+  "version": "0.1.0",
+  "description": "Give Cursor's agent a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, while your own computer stays free. You sign in once in the browser; no key to paste.",
+  "author": {
+    "name": "Simular"
+  },
+  "homepage": "https://box.simular.ai",
+  "repository": "https://github.com/simular-ai/box-plugin",
+  "license": "MIT",
+  "keywords": ["box", "simular box", "computer-use", "browser-automation", "cloud-computer", "mcp"],
+  "logo": "assets/logo.png"
+}
