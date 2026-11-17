@@ -1,12 +1,19 @@
 # box by Simular for ChatGPT and Codex
 
 The OpenAI plugin package: one listing covers ChatGPT and Codex. It connects the remote MCP server
-`https://mcp.box.simular.ai/mcp` with OAuth (dynamic client registration) and ships two skills:
+`https://mcp.box.simular.ai/mcp` with OAuth and ships two skills:
 `get-started` (onboarding) and `box` (a copy of `claude/skills/box/SKILL.md`).
 
 Format: OpenAI's portable plugin layout (https://developers.openai.com/plugins/build/plugins):
 `plugin.json` with listing, review test cases and release notes under `extensions.com.openai`,
 `mcp.json`, `skills/` and `assets/` (the box mark, rendered from box-portal `public/favicon.svg`).
+
+## OAuth client
+
+`mcp.json` sets `client.mode` to `cimd` (Client ID Metadata Document): ChatGPT signs in with
+`client_id` `https://chatgpt.com/oauth/client.json`, which box's authorization server fetches and
+verifies, so box's consent page shows "From chatgpt.com". With `dcr` the client registers itself
+and the consent page shows it as unverified. ChatGPT falls back to DCR on its own if CIMD fails.
 
 ## Build the ZIP
 
