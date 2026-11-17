@@ -7,7 +7,7 @@ The plugin adds the `box` MCP server (`https://mcp.box.simular.ai/mcp`) and a `b
 ## Install
 
 ```
-agy plugin install https://github.com/simular-ai/box-plugin
+agy plugin install https://github.com/simular-ai/box-plugin/tree/main/cursor
 ```
 
 ## Sign in
