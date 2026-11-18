@@ -1,0 +1,24 @@
+{
+  "name": "simular-box",
+  "version": "0.3.4",
+  "description": "Give Kimi Code a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, while your own computer stays free. You sign in once in the browser; no key to paste.",
+  "author": {
+    "name": "Simular",
+    "url": "https://simular.ai"
+  },
+  "homepage": "https://box.simular.ai",
+  "license": "MIT",
+  "keywords": ["computer-use", "browser-automation", "desktop-automation", "cloud-computer", "mcp"],
+  "skills": "./claude/skills/",
+  "mcpServers": {
+    "box": {
+      "url": "https://mcp.box.simular.ai/mcp"
+    }
+  },
+  "interface": {
+    "displayName": "box by Simular",
+    "shortDescription": "A cloud computer your agent drives over MCP",
+    "developerName": "Simular",
+    "websiteURL": "https://box.simular.ai"
+  }
+}
