@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "simular-box",
   "displayName": "box by Simular",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "A cloud Linux computer with Chrome and a shell that your agent drives over MCP, while your own computer stays free. Sign in once in the browser.",
   "logo": "assets/logo.png",
   "suggestedPrompts": [

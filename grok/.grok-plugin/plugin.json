@@ -1,6 +1,6 @@
 {
   "name": "box",
-  "version": "0.1.2",
+  "version": "0.1.1",
   "description": "Give Grok a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, while your own computer stays free. You sign in once in the browser; no key to paste.",
   "author": {
     "name": "Simular",

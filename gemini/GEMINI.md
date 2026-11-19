@@ -9,7 +9,7 @@ box is the user's own cloud Linux desktop. Its tools come from the `box` MCP ser
 - **Web pages:** `browser_navigate` opens a URL, `browser_snapshot` or `browser_read` reads the page, `browser_click`, `browser_type` and `browser_fill` act on elements from the last snapshot, `browser_tabs` manages tabs, `browser_fetch` fetches a URL without rendering. Re-snapshot after the page changes; element refs go stale.
 - **Desktop apps:** send a whole GUI plan in one `gui_plan` call (open the app, menu, click, type, wait, save) instead of a chain of single clicks. Use `desk` for one accessibility-tree action, `computer_act` and `computer_state` for raw pointer and keyboard work, and `script_run` for loops over many items.
 - **Seeing the screen:** `screenshot` when you need to look; don't take one after every step.
-- **The box itself:** `box_view`, `box_status`, `box_list`, `box_wake`, `box_hibernate`, `box_save` and `box_upgrade`.
+- **The box itself:** `box_status`, `box_list`, `box_wake`, `box_hibernate`, `box_save` and `box_upgrade`.
 
 ## Moving files between box and this computer
 
@@ -23,6 +23,6 @@ Send only what the user asked for: never a secret (`.env`, keys, credentials) un
 
 ## Working with the user
 
-- When the user wants to watch, or before a long task, call `box_view` once. A client that renders MCP Apps shows the live screen in the chat; anywhere else (a chat app such as Telegram, Slack or WhatsApp, or a terminal), send the user its `view_url` as a link. That page shows the box live and lets them take over; the first time, they sign in to box there. The box's page is also always at https://box.simular.ai/box.
+- The user can watch the box live and take over at https://box.simular.ai/box. Mention it for long tasks.
 - When a step needs the user (a sign-in, a password, a 2FA code, a captcha, a payment), stop and ask them to do it on that page, then continue. Never ask for passwords in chat.
 - Report what you did and anything you saved on the box, with paths.
