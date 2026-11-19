@@ -1,0 +1,18 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "simular-box",
+  "displayName": "box by Simular",
+  "version": "0.1.0",
+  "description": "A cloud Linux computer with Chrome and a shell that your agent drives over MCP, while your own computer stays free. Sign in once in the browser.",
+  "logo": "assets/logo.png",
+  "suggestedPrompts": [
+    "Open Hacker News in my box and summarize the top 5 stories",
+    "In my box, clone this repo, run its tests and tell me what fails",
+    "Fill in this web form in my box's Chrome and stop before submitting"
+  ],
+  "author": { "name": "Simular", "url": "https://www.simular.ai" },
+  "homepage": "https://box.simular.ai",
+  "repository": "https://github.com/simular-ai/box-plugin",
+  "license": "MIT",
+  "keywords": ["box", "simular box", "computer-use", "browser-automation", "cloud-computer", "mcp"]
+}
