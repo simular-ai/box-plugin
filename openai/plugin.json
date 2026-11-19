@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "box-by-simular",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Give your AI a computer of its own: a cloud Linux desktop with Chrome and a shell, driven over MCP, while your own computer stays free.",
   "author": {
     "name": "Simular",
