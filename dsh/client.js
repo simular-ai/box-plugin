@@ -27,7 +27,7 @@ window.__ModuleLoader__.load({
       saveFailed: 'Couldn’t save the key. Try again.',
       save: 'Save',
       saving: 'Saving…',
-      liveTitle: 'box · live screen',
+      liveTitle: 'box by Simular · live screen',
       liveFailed: 'Couldn’t show the live screen:',
     }
     const zh = {
@@ -41,7 +41,7 @@ window.__ModuleLoader__.load({
       saveFailed: 'key 没有保存成功，请再试一次。',
       save: '保存',
       saving: '保存中…',
-      liveTitle: 'box · 实时画面',
+      liveTitle: 'box by Simular · 实时画面',
       liveFailed: '实时画面没能显示：',
     }
 
