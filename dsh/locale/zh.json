@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "box",
-    "description": "Simular 的云端电脑，你的 agent 通过 MCP 操作它。"
+    "title": "box by Simular",
+    "description": "给你的 agent 一台云端电脑，有 Chrome、桌面应用和终端，通过 MCP 操作。"
   }
 }
