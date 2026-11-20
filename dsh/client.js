@@ -8,7 +8,7 @@ window.__ModuleLoader__.load({
   id: '@simular/dsh-box',
   factory: (require) => {
     const { jsx, jsxs } = require('react/jsx-runtime')
-    const { useCallback, useEffect, useState } = require('react')
+    const { useCallback, useEffect, useRef, useState } = require('react')
     const { SettingsForm, SettingsSecretField } = require('@deepseek-ai/dsh-client-ui-primitives')
 
     const PKG = '@simular/dsh-box'
@@ -27,6 +27,8 @@ window.__ModuleLoader__.load({
       saveFailed: 'Couldn’t save the key. Try again.',
       save: 'Save',
       saving: 'Saving…',
+      liveTitle: 'box · live screen',
+      liveFailed: 'Couldn’t show the live screen:',
     }
     const zh = {
       token: 'box 个人 key',
@@ -39,6 +41,8 @@ window.__ModuleLoader__.load({
       saveFailed: 'key 没有保存成功，请再试一次。',
       save: '保存',
       saving: '保存中…',
+      liveTitle: 'box · 实时画面',
+      liveFailed: '实时画面没能显示：',
     }
 
     function BoxTokenPage({ ctx, t }) {
@@ -120,6 +124,205 @@ window.__ModuleLoader__.load({
       })
     }
 
+    // --- Live view: box_view's screen in the chat.
+    //
+    // box serves its live view as an MCP App (ui://box/live): ChatGPT and Claude render it inline for
+    // box_view. dsh has no MCP Apps host, so this card is one, just for that page: it loads the page
+    // into a sandboxed iframe (no same-origin, so it cannot reach dsh) and answers the page's
+    // MCP Apps requests. The page's tool calls go to the Host half's relay route, which adds the key.
+
+    const VIEW_TOOL = 'mcp__box__box_view'
+    // Document-relative, like dsh's own routes: Web serves it from the page's origin, Desktop bridges it.
+    const LIVE_ROUTE = 'api/simular-box/live'
+    const APPS_PROTOCOL = '2026-01-26'
+
+    async function relay(body) {
+      const res = await fetch(LIVE_ROUTE, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      return data
+    }
+
+    let pagePromise
+    function livePage() {
+      pagePromise ??= relay({ op: 'page' }).then((data) => data.html).catch((err) => {
+        pagePromise = undefined
+        throw err
+      })
+      return pagePromise
+    }
+
+    function readArgs(block) {
+      const raw = block?.argsRaw ?? block?.call?.argsRaw
+      if (typeof raw !== 'string' || !raw) return {}
+      try {
+        const value = JSON.parse(raw)
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+      } catch {
+        return {}
+      }
+    }
+
+    // box mirrors box_view's structuredContent ({ box_id, name, state, view_url }) as JSON in its text
+    // block, and dsh keeps the text, so the result for the page is rebuilt from it.
+    function readResult(block) {
+      const text = (block?.content ?? []).filter((c) => c?.type === 'text').map((c) => c.text).join('\n')
+      if (block?.isError) {
+        return { isError: true, content: [{ type: 'text', text: text || block?.error?.reason || 'box_view failed' }] }
+      }
+      let structured
+      try {
+        structured = JSON.parse(text)
+      } catch {}
+      if (!structured?.box_id) return { isError: true, content: [{ type: 'text', text: text || 'box_view sent no box' }] }
+      return { isError: false, content: [{ type: 'text', text }], structuredContent: structured }
+    }
+
+    const isDark = () => {
+      const root = document.documentElement
+      if (root.dataset.theme === 'dark' || root.classList.contains('dark')) return true
+      if (root.dataset.theme === 'light' || root.classList.contains('light')) return false
+      return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+    }
+
+    function LiveView(props) {
+      const { phase, block, t } = props
+      const frame = useRef(null)
+      const state = useRef({ ready: false, args: undefined, result: undefined, sentArgs: false, sentResult: false, nextId: 1 })
+      const [html, setHtml] = useState()
+      const [failed, setFailed] = useState('')
+      const [height, setHeight] = useState(380)
+      // The box screen is 16:10 under a 46px bar; the page's own size report can come up a little short.
+      const [minHeight, setMinHeight] = useState(0)
+      useEffect(() => {
+        const el = frame.current
+        if (!el || typeof ResizeObserver === 'undefined') return undefined
+        const ro = new ResizeObserver(() => setMinHeight(Math.round(el.clientWidth * 0.625) + 70))
+        ro.observe(el)
+        return () => ro.disconnect()
+      }, [html])
+
+      useEffect(() => {
+        let live = true
+        livePage().then((page) => live && setHtml(page), (err) => live && setFailed(err?.message ?? String(err)))
+        return () => {
+          live = false
+        }
+      }, [])
+
+      const post = (message) => frame.current?.contentWindow?.postMessage(message, '*')
+      const flush = () => {
+        const s = state.current
+        if (!s.ready) return
+        if (s.args !== undefined && !s.sentArgs) {
+          s.sentArgs = true
+          post({ jsonrpc: '2.0', method: 'ui/notifications/tool-input', params: { arguments: s.args } })
+        }
+        if (s.result !== undefined && !s.sentResult) {
+          s.sentResult = true
+          post({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: s.result })
+        }
+      }
+
+      // Arguments exist from the start phase, the result from the result phase.
+      useEffect(() => {
+        if (phase === 'preparing') return
+        state.current.args ??= readArgs(block)
+        if (phase === 'result') state.current.result ??= readResult(block)
+        flush()
+      }, [phase, block])
+
+      useEffect(() => {
+        if (!html) return undefined
+        const handle = async (method, params) => {
+          switch (method) {
+            case 'ui/initialize':
+              return {
+                protocolVersion: params?.protocolVersion || APPS_PROTOCOL,
+                hostInfo: { name: 'DeepSeek Harness (box plugin)', version: '0.3.2' },
+                hostCapabilities: { openLinks: {}, serverTools: {} },
+                hostContext: {
+                  theme: isDark() ? 'dark' : 'light',
+                  displayMode: 'inline',
+                  availableDisplayModes: ['inline'],
+                  platform: 'desktop',
+                  toolInfo: { tool: { name: 'box_view', inputSchema: { type: 'object' } } },
+                },
+              }
+            case 'tools/call': {
+              const data = await relay({ op: 'tool', name: params?.name, arguments: params?.arguments ?? {} })
+              return data.result
+            }
+            case 'ui/open-link': {
+              const url = String(params?.url ?? '')
+              if (!/^https:\/\//.test(url)) throw new Error('only https links open')
+              window.open(url, '_blank', 'noopener,noreferrer')
+              return {}
+            }
+            case 'ui/request-display-mode':
+              return { mode: 'inline' }
+            case 'ui/update-model-context':
+            case 'ping':
+              return {}
+            default: {
+              const err = new Error(`${method} is not supported here`)
+              err.code = -32601
+              throw err
+            }
+          }
+        }
+        const onMessage = (event) => {
+          if (!frame.current || event.source !== frame.current.contentWindow) return
+          const m = event.data
+          if (!m || m.jsonrpc !== '2.0' || typeof m.method !== 'string') return
+          if (m.id === undefined) {
+            if (m.method === 'ui/notifications/initialized') {
+              state.current.ready = true
+              flush()
+            } else if (m.method === 'ui/notifications/size-changed') {
+              const h = Number(m.params?.height)
+              if (Number.isFinite(h) && h > 0) setHeight(Math.min(Math.max(Math.round(h), 220), 900))
+            }
+            return
+          }
+          handle(m.method, m.params).then(
+            (result) => post({ jsonrpc: '2.0', id: m.id, result: result ?? {} }),
+            (err) => post({ jsonrpc: '2.0', id: m.id, error: { code: err?.code ?? -32000, message: err?.message ?? String(err) } }),
+          )
+        }
+        window.addEventListener('message', onMessage)
+        return () => {
+          window.removeEventListener('message', onMessage)
+          post({ jsonrpc: '2.0', id: `teardown-${state.current.nextId++}`, method: 'ui/resource-teardown', params: {} })
+        }
+      }, [html])
+
+      // The page has its own bar (box name, Live, Take control), so this line shows only before it loads or if it fails.
+      const head = jsx('div', { style: { fontSize: 13, opacity: 0.75, margin: '2px 0 6px' }, children: t('liveTitle') })
+      if (failed) {
+        return jsxs('div', { children: [head, jsx('div', { style: { fontSize: 13, opacity: 0.7 }, children: `${t('liveFailed')} ${failed}` }, 'err')] })
+      }
+      if (phase === 'preparing' || !html) return jsxs('div', { children: [head] })
+      return jsxs('div', {
+        children: [
+          jsx('iframe', {
+            ref: frame,
+            title: t('liveTitle'),
+            srcDoc: html,
+            // No allow-same-origin: the page gets an opaque origin and cannot touch dsh.
+            sandbox: 'allow-scripts allow-popups allow-popups-to-escape-sandbox',
+            scrolling: 'no',
+            style: { display: 'block', width: '100%', height: Math.max(height, minHeight), border: 0, borderRadius: 12, background: 'transparent' },
+          }, 'frame'),
+        ],
+      })
+    }
+
     const inject = ['slots', 'locale', 'remote', 'remote.credentials']
 
     function apply(ctx) {
@@ -129,6 +332,11 @@ window.__ModuleLoader__.load({
         key: PKG,
         locale: NS,
       }, ({ t, view }) => (view === 'summary' ? t('token') : jsx(BoxTokenPage, { ctx, t })))), 'dsh-box: token page')
+      ctx.effect(() => ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
+        name: 'tool.call.toolview',
+        key: VIEW_TOOL,
+        locale: NS,
+      }, LiveView)), 'dsh-box: live view card')
     }
 
     return { apply, inject }
