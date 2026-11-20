@@ -244,7 +244,7 @@ window.__ModuleLoader__.load({
             case 'ui/initialize':
               return {
                 protocolVersion: params?.protocolVersion || APPS_PROTOCOL,
-                hostInfo: { name: 'DeepSeek Harness (box plugin)', version: '0.3.3' },
+                hostInfo: { name: 'DeepSeek Harness (box plugin)', version: '0.3.0' },
                 hostCapabilities: { openLinks: {}, serverTools: {} },
                 hostContext: {
                   theme: isDark() ? 'dark' : 'light',
