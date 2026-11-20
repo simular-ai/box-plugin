@@ -1,6 +1,6 @@
 {
   "name": "@simular/dsh-box",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "box by Simular: a cloud desktop your agent drives over MCP",
   "license": "MIT",
   "type": "module",

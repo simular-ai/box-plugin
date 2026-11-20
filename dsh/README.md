@@ -14,6 +14,8 @@ dsh's MCP client sends fixed headers and has no sign-in, so it reaches box with 
 
 box's tools show up as `mcp__box__*`.
 
+Ask the agent to show you the box (it calls `box_view`) and its live screen appears in the chat, view only, as in ChatGPT and Claude. It stays beneath the agent's answer after the turn ends; **Take control** opens the screen in your browser, where you can type.
+
 The key is kept in dsh's own credentials store as `BOX_TOKEN`, not in settings. On the command line, an exported `BOX_TOKEN` or a `BOX_TOKEN=cb_...` line in `~/.dsh/.env` works too. To use the staging box, also set `BOX_MCP_URL=https://staging.relay.simular.cloud/mcp` (VPN required).
 
 Always install from a versioned release link like the one above. pnpm caches what a tarball URL resolved to, so new contents behind the same URL (such as `releases/latest`) fail to install.
@@ -23,7 +25,8 @@ Always install from a versioned release link like the one above. pnpm caches wha
 - `cordis.patch.yml` inserts two rows: `box-auth` (this package) and `mcp-box` (`@deepseek-ai/dsh-mcp-client`, shipped with dsh). `mcp-box` injects the `boxAuth` service, so it waits quietly until a key exists and restarts with the new header when the key changes.
 - `index.js` (Host half) resolves `BOX_TOKEN` from dsh's credentials (store, then launch environment, then `~/.dsh/.env`) and provides `boxAuth`.
 - `client.js` (browser half) is the key page in the `plugins.bundle.config` slot. It is hand-written in dsh's lazy-CJS client format, so the package has no build step.
+- Live view: dsh has no MCP Apps host, so `client.js` hosts box's live view page (`ui://box/live`, the MCP App ChatGPT and Claude render) itself. A `tool.call.toolview` card for `mcp__box__box_view` shows it while the turn runs, and a turn definition plus a `conversation.chat.turnTail` entry keep it under the answer once dsh folds the turn's tool calls. The page runs in a sandboxed iframe without same-origin access and talks MCP Apps over `postMessage`; its tool calls go to `POST /api/simular-box/live`, a Host route in `index.js` that adds the key (so the key never reaches the browser) and passes only the six tools the page uses (`box_view`, `box_view_token`, `box_status`, `box_approvals`, `box_approval_token`, `box_approval_answer`).
 
-Tested on dsh 0.2.1-rc.5 web, which serves the same UI as Desktop.
+Tested on dsh 0.2.1-rc.5 web, which serves the same UI as Desktop. The live view was tested on dsh 0.2.2-rc.1 web.
 
 Contributed by Dora Qian (originally in simular-ai/box-portal#18).

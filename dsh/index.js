@@ -159,7 +159,7 @@ function createMcp(currentToken) {
       jsonrpc: '2.0',
       id,
       method: 'initialize',
-      params: { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: 'dsh-box-live-view', version: '0.3.2' } },
+      params: { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: 'dsh-box-live-view', version: '0.3.3' } },
     })
     await answer(res, id)
     const sessionId = res.headers.get('mcp-session-id') ?? ''
