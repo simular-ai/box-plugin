@@ -235,6 +235,20 @@ window.__ModuleLoader__.load({
         state.current.args ??= readArgs(block)
         if (phase === 'result') state.current.result ??= readResult(block)
         flush()
+        if (phase !== 'auto' || state.current.statusAsked) return
+        // No box_view result to hand the page: box_status names the box and its view_url instead.
+        state.current.statusAsked = true
+        const ref = typeof state.current.args.box === 'string' ? { box: state.current.args.box } : {}
+        relay({ op: 'tool', name: 'box_status', arguments: ref }).then(({ result }) => {
+          const sc = result?.structuredContent
+          state.current.result = result && !result.isError && sc?.box_id
+            ? { isError: false, content: [{ type: 'text', text: JSON.stringify(sc) }], structuredContent: { box_id: sc.box_id, name: sc.name, state: sc.state, view_url: sc.view_url } }
+            : { isError: true, content: result?.content ?? [{ type: 'text', text: 'Could not find the box.' }] }
+          flush()
+        }, (err) => {
+          state.current.result = { isError: true, content: [{ type: 'text', text: err?.message ?? String(err) }] }
+          flush()
+        })
       }, [phase, block])
 
       useEffect(() => {
@@ -334,6 +348,19 @@ window.__ModuleLoader__.load({
 
     const NODE_KIND = 'simular-box-live'
 
+    // box tools that don't touch the screen: account and box management, and shell and file work
+    // that runs out of sight. Every other box tool (clicks, typing, the browser, screenshots, waking)
+    // is screen work; a tool box adds later counts as screen work too.
+    const OFFSCREEN = new Set([
+      'box_list', 'box_status', 'box_hibernate', 'box_save', 'box_snapshots', 'box_restore_paths', 'box_upgrade',
+      'box_delete', 'usage', 'billing', 'box_view_token', 'box_approvals', 'box_approval_token', 'box_approval_answer',
+      'shell', 'exec', 'read_file', 'write_file', 'edit_file', 'list_dir',
+    ])
+    const BOX_PREFIX = 'mcp__box__'
+    function isScreenTool(name) {
+      return typeof name === 'string' && name.startsWith(BOX_PREFIX) && !OFFSCREEN.has(name.slice(BOX_PREFIX.length))
+    }
+
     const viewDefinition = {
       kind: NODE_KIND,
       target: 'chat',
@@ -348,11 +375,15 @@ window.__ModuleLoader__.load({
         const event = match.event
         const state = context.state
         if (event.type === 'tool/call') {
-          // The turn's latest box_view is the one shown; a new call starts a new view.
-          if (event.data.name !== VIEW_TOOL) return state
-          return { call: { callId: String(event.data.callId), argsRaw: event.data.arguments, seq: event.seq, time: event.time }, result: undefined }
+          const name = event.data.name
+          const call = { callId: String(event.data.callId), argsRaw: event.data.arguments, seq: event.seq, time: event.time }
+          // box_view always gets the view. Any other box tool that works on the screen opens one too,
+          // once per turn, so the person sees the box without the agent being asked to show it.
+          if (name === VIEW_TOOL) return state.call && !state.call.auto ? state : { call, result: undefined }
+          if (!state.call && isScreenTool(name)) return { call: { ...call, auto: true }, result: undefined }
+          return state
         }
-        if (event.type !== 'tool/result' || !state.call) return state
+        if (event.type !== 'tool/result' || !state.call || state.call.auto) return state
         if (String(event.data.message.source.callId) !== state.call.callId || state.result) return state
         return {
           ...state,
@@ -390,7 +421,7 @@ window.__ModuleLoader__.load({
     function LiveNode({ node, t }) {
       const { call, result } = node.data
       const block = result ?? { argsRaw: call.argsRaw }
-      return jsx(LiveView, { phase: result ? 'result' : 'start', block, t }, call.callId)
+      return jsx(LiveView, { phase: call.auto ? 'auto' : result ? 'result' : 'start', block, t }, call.callId)
     }
 
     const inject = ['slots', 'locale', 'remote', 'remote.credentials']
