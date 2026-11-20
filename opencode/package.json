@@ -1,0 +1,26 @@
+{
+  "name": "@simular-ai/opencode-box",
+  "version": "0.1.0",
+  "description": "box by Simular for OpenCode: a cloud Linux computer with Chrome and a shell that OpenCode drives over MCP, while your own computer stays free. Sign in once in the browser; no key to paste.",
+  "license": "MIT",
+  "homepage": "https://box.simular.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simular-ai/box-plugin.git",
+    "directory": "opencode"
+  },
+  "author": {
+    "name": "Simular",
+    "url": "https://simular.ai"
+  },
+  "keywords": ["opencode", "opencode-plugin", "box", "simular", "computer-use", "cloud-computer", "browser-automation", "mcp"],
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": ["index.ts", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  }
+}
