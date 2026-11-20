@@ -127,7 +127,7 @@ window.__ModuleLoader__.load({
     // --- Live view: box_view's screen in the chat.
     //
     // box serves its live view as an MCP App (ui://box/live): ChatGPT and Claude render it inline for
-    // box_view. dsh has no MCP Apps host, so this card is one, just for that page: it loads the page
+    // box_view. dsh has no MCP Apps host, so this view is one, just for that page: it loads the page
     // into a sandboxed iframe (no same-origin, so it cannot reach dsh) and answers the page's
     // MCP Apps requests. The page's tool calls go to the Host half's relay route, which adds the key.
 
@@ -323,64 +323,74 @@ window.__ModuleLoader__.load({
       })
     }
 
-    // --- The same view beneath a finished turn.
+    // --- Where the view sits in the chat.
     //
-    // dsh folds a finished turn's tool calls, the card above with them. Like dsh's own created-task
-    // card, a turn definition collects the turn's settled box_view results and the turn tail, which
-    // stays open, shows the last one.
+    // dsh folds a turn's tool calls into "Called tools" as soon as the next call starts, so a
+    // tool-call card would hide the screen while the agent works. Instead a conversation definition
+    // publishes the view as its own chat node at the turn level (groupTree 'turn'), which dsh keeps
+    // outside the folded process, running or finished. It sits where box_view was called.
+    // Contexts are keyed by turn: the engine refuses an update before its start, and a tool/result
+    // alone does not say which tool it answers.
 
-    const TURN_KEY = 'simular-box-view'
+    const NODE_KIND = 'simular-box-live'
 
-    const turnDefinition = {
-      kind: TURN_KEY,
+    const viewDefinition = {
+      kind: NODE_KIND,
+      target: 'chat',
       match: (event) => {
         if (event.type === 'turn/start') return { id: String(event.data.turn), role: 'start' }
         if (event.type === 'tool/call') return { id: String(event.data.turn), role: 'update' }
         if (event.type === 'tool/result' && event.surfaceOp === 'append') return { id: String(event.data.turn), role: 'update' }
         return null
       },
-      start: (_context, match) => ({ turn: match.event.data.turn, calls: new Map(), views: [] }),
+      start: () => ({ call: undefined, result: undefined }),
       update: (context, match) => {
         const event = match.event
         const state = context.state
         if (event.type === 'tool/call') {
+          // The turn's latest box_view is the one shown; a new call starts a new view.
           if (event.data.name !== VIEW_TOOL) return state
-          const calls = new Map(state.calls)
-          calls.set(String(event.data.callId), { argsRaw: event.data.arguments, time: event.time })
-          return { ...state, calls }
+          return { call: { callId: String(event.data.callId), argsRaw: event.data.arguments, seq: event.seq, time: event.time }, result: undefined }
         }
-        if (event.type !== 'tool/result') return state
-        const callId = String(event.data.message.source.callId)
-        const call = state.calls.get(callId)
-        if (!call || state.views.some((view) => view.callId === callId)) return state
-        const node = {
-          kind: 'tool-result',
-          seq: event.seq,
-          time: event.time,
-          callId,
-          name: VIEW_TOOL,
-          call: { name: VIEW_TOOL, argsRaw: call.argsRaw },
-          callTime: call.time,
-          content: event.data.message.content,
-          isError: event.data.message.isError === true,
-          subCalls: [],
+        if (event.type !== 'tool/result' || !state.call) return state
+        if (String(event.data.message.source.callId) !== state.call.callId || state.result) return state
+        return {
+          ...state,
+          result: {
+            kind: 'tool-result',
+            seq: event.seq,
+            time: event.time,
+            callId: state.call.callId,
+            name: VIEW_TOOL,
+            call: { name: VIEW_TOOL, argsRaw: state.call.argsRaw },
+            callTime: state.call.time,
+            content: event.data.message.content,
+            isError: event.data.message.isError === true,
+            subCalls: [],
+          },
         }
-        return { ...state, views: [...state.views, node] }
       },
-      buildLocationData: (context, scope, previous) => {
-        if (scope !== 'turn' || context.state === undefined) return null
-        if (previous?.kind === 'turn' && previous.turn === context.state.turn && previous.key === TURN_KEY
-          && previous.value.views === context.state.views) return previous
-        return { kind: 'turn', turn: context.state.turn, key: TURN_KEY, value: { views: context.state.views } }
+      buildViewNode: (context) => {
+        const state = context.state
+        if (!state?.call) return null
+        return {
+          key: context.key,
+          kind: NODE_KIND,
+          id: context.id,
+          target: 'chat',
+          anchorSeq: state.call.seq,
+          location: context.start?.location ?? context.matches[0]?.location ?? { kind: 'unresolved' },
+          visibility: state.result?.isError ? 'hidden' : 'visible',
+          groupTree: 'turn',
+          data: { call: state.call, result: state.result },
+        }
       },
     }
 
-    function LiveTail(props) {
-      const views = props.turn?.data?.get(TURN_KEY)?.views ?? []
-      const end = props.turn?.end?.seq ?? props.seq
-      const last = views.filter((view) => view.seq <= end).at(-1)
-      if (!last || last.isError) return null
-      return jsx(LiveView, { phase: 'result', block: last, t: props.t }, last.callId)
+    function LiveNode({ node, t }) {
+      const { call, result } = node.data
+      const block = result ?? { argsRaw: call.argsRaw }
+      return jsx(LiveView, { phase: result ? 'result' : 'start', block, t }, call.callId)
     }
 
     const inject = ['slots', 'locale', 'remote', 'remote.credentials']
@@ -392,20 +402,14 @@ window.__ModuleLoader__.load({
         key: PKG,
         locale: NS,
       }, ({ t, view }) => (view === 'summary' ? t('token') : jsx(BoxTokenPage, { ctx, t })))), 'dsh-box: token page')
-      ctx.effect(() => ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
-        name: 'tool.call.toolview',
-        key: VIEW_TOOL,
-        locale: NS,
-      }, LiveView)), 'dsh-box: live view card')
-      // Optional: a client without the conversation service still gets the key page and the card.
+      // Optional: a client without the conversation service still gets the key page.
       ctx.inject(['uiConversation'], (scope) => {
-        scope.effect(() => scope.uiConversation.events.register(turnDefinition), 'dsh-box: live view turn data')
-        scope.effect(() => scope.slots.inject('conversation.chat.turnTail', () => scope.slots.register({
-          name: 'conversation.chat.turnTail',
-          id: `${PKG}/live-view`,
-          order: 10,
+        scope.effect(() => scope.uiConversation.events.register(viewDefinition), 'dsh-box: live view node')
+        scope.effect(() => scope.slots.inject('conversation.chat.node', () => scope.slots.register({
+          name: 'conversation.chat.node',
+          key: NODE_KIND,
           locale: NS,
-        }, LiveTail)), 'dsh-box: live view beneath the turn')
+        }, LiveNode)), 'dsh-box: live view renderer')
       })
     }
 
