@@ -11,7 +11,7 @@ Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` 
 | OpenClaw | [`openclaw/`](https://github.com/simular-ai/box-plugin/tree/main/openclaw) | OAuth, once from the plugin's page in Settings | `openclaw plugins install @simular-ai/openclaw-box` |
 | Any of Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Hermes, OpenClaw, VS Code (and steps for Claude Desktop) | [`@simular-ai/box`](https://www.npmjs.com/package/@simular-ai/box) (the box CLI, from [simular-ai/box-cli](https://github.com/simular-ai/box-cli)) | OAuth; personal key with `--auth key` for Hermes and OpenClaw | `npx @simular-ai/box connect` (check with `npx @simular-ai/box doctor`) |
 | Hermes Agent | [`hermes/`](https://github.com/simular-ai/box-plugin/tree/main/hermes) | Personal key (`cb_...`) in `MCP_BOX_API_KEY`; OAuth optional | [hermes/README.md](https://github.com/simular-ai/box-plugin/blob/main/hermes/README.md) |
-| ChatGPT and Codex (OpenAI plugin directory) | [`openai/`](https://github.com/simular-ai/box-plugin/tree/main/openai) | OAuth, once in the browser | Listed by OpenAI after review; build the upload with `openai/build-zip.sh` ([openai/README.md](https://github.com/simular-ai/box-plugin/blob/main/openai/README.md)) |
+| ChatGPT and Codex (OpenAI plugin directory) | [`openai/`](https://github.com/simular-ai/box-plugin/tree/main/openai) | OAuth, once in the browser | Listed in ChatGPT's plugin directory: [box by Simular](https://chatgpt.com/plugins/plugin_asdk_app_6af13fd141b48191b8c8fdb9ebd37276), then **Install plugin** ([openai/README.md](https://github.com/simular-ai/box-plugin/blob/main/openai/README.md)) |
 
 ## What this plugin contains
 
