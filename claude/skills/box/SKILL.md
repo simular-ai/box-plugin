@@ -27,6 +27,7 @@ Send only what the user asked for: never a secret (`.env`, keys, credentials) un
 
 ## Working with the user
 
-- Before your first action on the box's screen in a task (a web page, a desktop app, a screenshot), call `box_view` once so the user can watch. A client that renders MCP Apps shows the live screen in the chat; anywhere else (a terminal), give the user its `view_url` as a link. Shell-only tasks don't need it.
+- In a client with a chat window that renders MCP Apps (WorkBuddy, ZCode, Claude Desktop and similar), call `box_view` once before your first action on the box's screen in a task (a web page, a desktop app, a screenshot), so the user can watch it live in the chat. Shell-only tasks don't need it.
+- In a terminal (Claude Code, CodeBuddy Code and other CLIs), don't call `box_view`; for long tasks, mention that the user can watch the box live and take over at https://box.simular.ai/box.
 - When a step needs the user (a sign-in, a password, a 2FA code, a captcha, a payment), stop and ask them to do it on that page, then continue. Never ask for passwords in chat.
 - Report what you did and anything you saved on the box, with paths.
