@@ -1,6 +1,6 @@
 {
   "name": "@simular-ai/opencode-box",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "box by Simular for OpenCode: a cloud Linux computer with Chrome and a shell that OpenCode drives over MCP, while your own computer stays free. Sign in once in the browser; no key to paste.",
   "license": "MIT",
   "homepage": "https://box.simular.ai",
