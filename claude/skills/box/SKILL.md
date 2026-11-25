@@ -19,11 +19,11 @@ box is the user's own cloud Linux desktop. Its tools come from the `box` MCP ser
 
 The box tools act inside the box, and `read_file` reads text only. When the user asks to bring a file home or send one to the box, and you also have a shell on the user's computer (Claude Code, Codex and other CLI agents), use the box CLI there. It runs over box's API as the signed-in user, and the copy is byte for byte:
 
-- Download a file: `npx -y @simular-ai/box@1.2.2 exec -- cat /home/user/report.pdf > report.pdf`
-- Upload a file: `npx -y @simular-ai/box@1.2.2 exec -c 'cat > /home/user/data.csv' < data.csv`
-- A folder, either way, with rsync. The host is the box's name from `box_list` (or `npx -y @simular-ai/box@1.2.2 ls`): `rsync -az -e "npx -y @simular-ai/box@1.2.2 rsh" main:/home/user/out/ ./out/`
+- Download a file: `npx -y @simular-ai/box@1.3.0 exec -- cat /home/user/report.pdf > report.pdf`
+- Upload a file: `npx -y @simular-ai/box@1.3.0 exec -c 'cat > /home/user/data.csv' < data.csv`
+- A folder, either way, with rsync. The host is the box's name from `box_list` (or `npx -y @simular-ai/box@1.3.0 ls`): `rsync -az -e "npx -y @simular-ai/box@1.3.0 rsh" main:/home/user/out/ ./out/`
 
-Send only what the user asked for: never a secret (`.env`, keys, credentials) unless the user names that file, and add `--exclude .env` when you rsync a folder up. Don't overwrite a local file without asking; pick a new name instead. `exec` uses the first box unless you add `--box <name>`. If the CLI says it isn't signed in, run `npx -y @simular-ai/box@1.2.2 login` and ask the user to allow it in the browser. Without a shell on the user's computer (ChatGPT, Claude on the web) there is no download yet: tell the user the file's path on the box.
+Send only what the user asked for: never a secret (`.env`, keys, credentials) unless the user names that file, and add `--exclude .env` when you rsync a folder up. Don't overwrite a local file without asking; pick a new name instead. `exec` uses the first box unless you add `--box <name>`. If the CLI says it isn't signed in, run `npx -y @simular-ai/box@1.3.0 login` and ask the user to allow it in the browser. Without a shell on the user's computer (ChatGPT, Claude on the web) there is no download yet: tell the user the file's path on the box.
 
 ## Working with the user
 
