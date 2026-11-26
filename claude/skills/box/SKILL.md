@@ -13,7 +13,7 @@ box is the user's own cloud Linux desktop. Its tools come from the `box` MCP ser
 - **Web pages:** `browser_navigate` opens a URL, `browser_snapshot` or `browser_read` reads the page, `browser_click`, `browser_type` and `browser_fill` act on elements from the last snapshot, `browser_tabs` manages tabs, `browser_fetch` fetches a URL without rendering. Re-snapshot after the page changes; element refs go stale.
 - **Desktop apps:** send a whole GUI plan in one `gui_plan` call (open the app, menu, click, type, wait, save) instead of a chain of single clicks. Use `desk` for one accessibility-tree action, `computer_act` and `computer_state` for raw pointer and keyboard work, and `script_run` for loops over many items.
 - **Seeing the screen:** `screenshot` when you need to look; don't take one after every step.
-- **The box itself:** `box_status`, `box_list`, `box_wake`, `box_hibernate`, `box_save` and `box_upgrade`.
+- **The box itself:** `box_view`, `box_status`, `box_list`, `box_wake`, `box_hibernate`, `box_save` and `box_upgrade`.
 
 ## Moving files between box and this computer
 
@@ -27,7 +27,8 @@ Send only what the user asked for: never a secret (`.env`, keys, credentials) un
 
 ## Working with the user
 
-- The user can watch the box live and take over at https://box.simular.ai/box. Mention it for long tasks.
+- In a client with a chat window that renders MCP Apps (WorkBuddy, ZCode, Claude Desktop and similar), call `box_view` once before your first action on the box's screen in a task (a web page, a desktop app, a screenshot), so the user can watch it live in the chat. Shell-only tasks don't need it.
+- In a terminal (Claude Code, CodeBuddy Code and other CLIs), don't call `box_view`; for long tasks, mention that the user can watch the box live and take over at https://box.simular.ai/box.
 - When a step needs the user (a sign-in, a password, a 2FA code, a captcha, a payment), stop and ask them to do it on that page, then continue. Never ask for passwords in chat.
 - When a site in the box's browser shows a sign-in page, don't ask the user for the password. If they use Chrome on a Mac, they can bring that site's sign-in into the box with the box desktop app (the box's Settings > Sign-ins > Import from Chrome) or by running `npx @simular-ai/box credentials import` in a terminal. Either way, they can also sign in themselves in the box's live view. You can only suggest the import, not start it, and some sites still ask to sign in after one.
 - Report what you did and anything you saved on the box, with paths.
