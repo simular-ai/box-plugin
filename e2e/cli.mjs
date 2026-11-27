@@ -1,6 +1,6 @@
 // The box CLI these tests run: the Rust `simular-box` from simular-ai/box-cli, at the exact
-// version the Claude plugin pins (claude-code/skills/box-offload/SKILL.md; CI keeps every pin under
-// claude/ and claude-code/ on one version that is on npm). Set BOX_CLI to a binary to test another build, for
+// version the Claude plugin pins (claude-code/skills/box-offload/SKILL.md; CI keeps each Claude
+// folder on one exact version that is on npm; claude/ may lag). Set BOX_CLI to a binary to test another build, for
 // example a local `target/release/simular-box` from a box-cli checkout.
 import fs from 'node:fs'
 import path from 'node:path'
