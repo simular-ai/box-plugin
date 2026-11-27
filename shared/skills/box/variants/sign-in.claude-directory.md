@@ -1,0 +1,1 @@
+- When a site in the box's browser shows a sign-in page, don't ask the user for the password. Ask them to sign in themselves in the box's live view, then continue.

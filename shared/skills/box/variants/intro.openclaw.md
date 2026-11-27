@@ -1,0 +1,1 @@
+box is the user's own cloud Linux desktop. Its tools come from the `box` MCP server. If its tools are missing or fail with an authorization error, ask the user to sign in once: OpenClaw Settings > Plugins > box by Simular > Accounts > Connect. Never ask for passwords or keys in chat. A sleeping box wakes on the first call, which can take a few seconds.

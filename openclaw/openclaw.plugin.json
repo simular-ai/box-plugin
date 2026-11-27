@@ -1,7 +1,7 @@
 {
   "id": "box",
   "name": "box by Simular",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Give your OpenClaw agent a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, around the clock, while your own machine stays free.",
   "configSchema": {
     "type": "object",
