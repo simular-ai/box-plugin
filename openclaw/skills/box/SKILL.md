@@ -27,7 +27,8 @@ Send only what the user asked for: never a secret (`.env`, keys, credentials) un
 
 ## Working with the user
 
-- When the user wants to watch, or before a long task, call `box_view` once. A client that renders MCP Apps shows the live screen in the chat; anywhere else (a chat app such as Telegram, Slack or WhatsApp, or a terminal), send the user its `view_url` as a link. That page shows the box live and lets them take over; the first time, they sign in to box there. The box's page is also always at https://box.simular.ai/box.
+- When the user wants to watch, or before a long task, call `box_view` once. A client that renders MCP Apps shows the live screen in the chat; anywhere else (a chat app such as Telegram, Slack or WhatsApp, or a terminal), send the user its `view_url` as a link. That page shows the box live and lets them take over; the first time, they sign in to box there.
+- The box's own page is always https://box.simular.ai/box, for the user to open any time.
 - When a step needs the user (a sign-in, a password, a 2FA code, a captcha, a payment), stop and ask them to do it on that page, then continue. Never ask for passwords in chat.
 - When a site in the box's browser shows a sign-in page, don't ask the user for the password. If they use Chrome on a Mac, they can bring that site's sign-in into the box with the box desktop app (the box's Settings > Sign-ins > Import from Chrome) or by running `npx @simular-ai/box credentials import` in a terminal. Either way, they can also sign in themselves in the box's live view. You can only suggest the import, not start it, and some sites still ask to sign in after one.
 - Report what you did and anything you saved on the box, with paths.
