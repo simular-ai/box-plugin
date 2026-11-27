@@ -37,6 +37,6 @@ This folder is a portable Agent Plugins v1 package (`plugin.json`, `mcp.json`, `
 
    To update, run `hermes plugins update simular-box` (or copy the folder again if you installed it by hand) and restart the gateway. Version 0.2.0 renamed the plugin from `box` to `simular-box`: if you installed an earlier version, run `hermes plugins disable box`, delete `~/.hermes/plugins/box`, then install as above. Version 0.1.1 moved box to `https://mcp.box.simular.ai/mcp`.
 
-**On a desktop with a browser**, you can sign in instead of using a key: `hermes mcp add box --url https://mcp.box.simular.ai/mcp --auth oauth`, then `hermes mcp login box`. A server you add this way overrides the plugin's entry of the same name. On a server, prefer the key: when an OAuth refresh token expires, Hermes parks the server until someone signs in again by hand.
+**On a desktop with a browser**, you can sign in instead of using a key: `hermes mcp add box --url https://mcp.box.simular.ai/mcp --auth oauth`, then `hermes mcp login box`. If a Hermes gateway is already running, run `hermes gateway restart` after signing in: a running gateway keeps the state from before sign-in and the agent won't see box's tools until it restarts. A server you add this way overrides the plugin's entry of the same name. On a server, prefer the key: when an OAuth refresh token expires, Hermes parks the server until someone signs in again by hand.
 
 Watch the box live, and take over when needed, at https://box.simular.ai/box.
