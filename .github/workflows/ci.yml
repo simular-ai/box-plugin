@@ -83,15 +83,20 @@ jobs:
       - name: Plugin pins the CLI to one exact version that is on npm
         # A range (^1.0.0) lets npx run a version published after review; the Claude directory
         # review asks for an exact pin. The CLI is the Rust simular-box, released from
-        # simular-ai/box-cli, so the pin follows its npm releases. e2e/ tests this same version.
+        # simular-ai/box-cli, so the pin follows its npm releases. e2e/ tests claude-code/'s version.
+        # claude/ (the directory submission) may lag claude-code/: a commit there replaces the
+        # version under directory review, so it moves by hand. Each folder still pins one exact
+        # version that is on npm.
         run: |
           set -euo pipefail
-          pins=$(grep -rhoE '@simular-ai/box@[^ `"]*' claude claude-code | sort -u)
-          if [ "$(printf '%s\n' "$pins" | grep -c .)" -ne 1 ]; then echo "claude/ and claude-code/ must pin one CLI version, found:"; echo "$pins"; exit 1; fi
-          v=${pins#@simular-ai/box@}
-          if ! printf '%s' "$v" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "pin an exact release, not $pins"; exit 1; fi
-          if [ "$(npm view "@simular-ai/box@$v" version)" != "$v" ]; then echo "$pins is not on npm"; exit 1; fi
-          echo "claude/ and claude-code/ pin $pins"
+          for d in claude-code claude; do
+            pins=$(grep -rhoE '@simular-ai/box@[^ `"]*' "$d" | sort -u)
+            if [ "$(printf '%s\n' "$pins" | grep -c .)" -ne 1 ]; then echo "$d/ must pin one CLI version, found:"; echo "$pins"; exit 1; fi
+            v=${pins#@simular-ai/box@}
+            if ! printf '%s' "$v" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "$d/: pin an exact release, not $pins"; exit 1; fi
+            if [ "$(npm view "@simular-ai/box@$v" version)" != "$v" ]; then echo "$d/: $pins is not on npm"; exit 1; fi
+            echo "$d/ pins $pins"
+          done
       - name: DeepSeek Harness package
         run: npm pack ./dsh --dry-run
       - name: Hermes plugin
