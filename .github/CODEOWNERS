@@ -1,0 +1,3 @@
+# claude/ is the Claude plugin directory submission. While a directory review or appeal is open, any new
+# commit there replaces the version under review, so changes need the owner's approval.
+/claude/ @chenchenSimular
