@@ -1,0 +1,27 @@
+{
+  "cliVersionFrom": "claude-code/skills/box-offload/SKILL.md",
+  "hosts": {
+    "claude-code": { "out": "claude-code/skills/box/SKILL.md" },
+    "claude": {
+      "out": "claude/skills/box/SKILL.md",
+      "header": false,
+      "variants": { "secrets": "claude-directory", "sign-in": "claude-directory" }
+    },
+    "cursor": { "out": "cursor/skills/box/SKILL.md" },
+    "grok": { "out": "grok/skills/box/SKILL.md" },
+    "openai": { "out": "openai/skills/box/SKILL.md" },
+    "hermes": {
+      "out": "hermes/skills/box/SKILL.md",
+      "variants": { "intro": "hermes", "view-tool": "box-view", "watch": "box-view" }
+    },
+    "openclaw": {
+      "out": "openclaw/skills/box/SKILL.md",
+      "variants": { "intro": "openclaw", "view-tool": "box-view", "watch": "box-view" }
+    },
+    "pi": {
+      "out": "pi/skills/box/SKILL.md",
+      "variants": { "intro": "pi" }
+    },
+    "gemini": { "out": "gemini/GEMINI.md", "frontmatter": false }
+  }
+}

@@ -5,7 +5,8 @@ name: CI
 # repo publishes no CLI to npm (the old JavaScript CLI that lived in cli/ was retired); the Pi
 # package in pi/ is published by release-pi.yml on a pi-v* tag.
 #
-# Every non-draft PR that touches a plugin folder or e2e/ runs:
+# Every non-draft PR that touches a plugin folder, shared/, scripts/ or e2e/ runs:
+#   skills   the per-host skill copies match what scripts/gen-skills.mjs writes from shared/
 #   plugins  each agent's own validator over the plugin folders, and the Claude plugin's CLI pin
 #   clients  Layer 1: the pinned CLI against each real, installed client in an isolated HOME
 #            (versions pinned in e2e/clients.json). No secrets.
@@ -27,6 +28,11 @@ on:
       - 'openclaw/**'
       - 'pi/**'
       - 'grok/**'
+      - 'cursor/**'
+      - 'openai/**'
+      - 'gemini/**'
+      - 'shared/**'
+      - 'scripts/**'
       - '.claude-plugin/**'
       - '.github/workflows/ci.yml'
   push:
@@ -35,6 +41,8 @@ on:
       - 'e2e/**'
       - 'claude/**'
       - 'claude-code/**'
+      - 'shared/**'
+      - 'scripts/**'
       - '.claude-plugin/**'
       - '.github/workflows/ci.yml'
   workflow_dispatch:
@@ -51,6 +59,46 @@ defaults:
     shell: bash
 
 jobs:
+  skills:
+    name: Skill copies match shared/
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 24
+      - name: Regenerate and compare
+        # Each host folder ships its own copy of the box skill (folders are installed on their
+        # own, without symlinks); shared/skills/ is the one source. Edit there, then run
+        # `node scripts/gen-skills.mjs` and commit what it writes.
+        run: |
+          set -euo pipefail
+          node scripts/gen-skills.mjs
+          # status also catches a host's file that was never committed (untracked).
+          if ! git diff --exit-code || [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "::error::The skill copies differ from shared/skills/. Run 'node scripts/gen-skills.mjs' and commit the result."
+            exit 1
+          fi
+      - name: Flag changes to claude/ (the version under Claude directory review)
+        # Any commit that changes claude/ replaces the plugin version Anthropic is reviewing. A
+        # warning, not a failure, so a deliberate directory update can still go through.
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          # On a pull_request run HEAD is the merge commit, and HEAD^1 the base branch.
+          if ! git diff --quiet HEAD^1 HEAD -- claude/; then
+            git diff --stat HEAD^1 HEAD -- claude/
+            echo "::warning::This PR changes claude/, the plugin under Claude directory review. Merging it replaces the reviewed version."
+          else
+            echo "claude/ unchanged"
+          fi
+
   plugins:
     name: Validate plugin folders
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft

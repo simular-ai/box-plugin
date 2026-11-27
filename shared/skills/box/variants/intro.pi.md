@@ -1,0 +1,1 @@
+box is the user's own cloud Linux desktop. Its tools come from the `box` MCP server and are named `mcp__box__<tool>`; the most used ones are declared directly, find the rest with `tool_search`. If box's tools are missing or need sign-in, ask the user to run `/mcp login box` once and approve in the browser. A sleeping box wakes on the first call, which can take a few seconds.
