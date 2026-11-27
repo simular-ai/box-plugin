@@ -2,7 +2,7 @@
 
 [box](https://box.simular.ai) gives your AI agent a computer of its own: a cloud Linux desktop with Chrome and a shell that it drives over MCP, while your own computer stays free. You can watch it live and take over at https://box.simular.ai/box.
 
-Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` and sign in once (see https://box.simular.ai/install). The [simular-ai/box-plugin](https://github.com/simular-ai/box-plugin) repository holds a package for each agent that installs box its own way. Each folder stands alone and is released through that agent's channel. This folder is the Claude Code and Cowork plugin in this repository's marketplace. The plugin listed in the Claude plugin directory is [`claude/`](https://github.com/simular-ai/box-plugin/tree/main/claude), the same without offload.
+Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` and sign in once (see https://box.simular.ai/install). The [simular-ai/box-plugin](https://github.com/simular-ai/box-plugin) repository holds a package for each agent that installs box its own way. Each folder stands alone and is released through that agent's channel. This folder is the Claude Code and Cowork plugin in this repository's marketplace. The plugin listed in the Claude plugin directory is [`claude/`](https://github.com/simular-ai/box-plugin/tree/main/claude), the same without offload and without the Chrome sign-in import tip.
 
 | Agent | Folder | Sign-in | Install |
 | --- | --- | --- | --- |
@@ -70,7 +70,7 @@ Into your own box, the cloud computer of the box account you signed in with, at 
 
 ## Adding an agent
 
-Add a folder named after the agent with its own manifest, MCP config and, where the agent supports skills, a copy of `claude/skills/box/SKILL.md`. Point it at `https://mcp.box.simular.ai/mcp`. Use OAuth sign-in where the agent supports it; otherwise read a personal key from an environment variable or the agent's own credentials store, never from a file in the package. Add a row above.
+Add a folder named after the agent with its own manifest, MCP config and, where the agent supports skills, a copy of `claude-code/skills/box/SKILL.md`. Point it at `https://mcp.box.simular.ai/mcp`. Use OAuth sign-in where the agent supports it; otherwise read a personal key from an environment variable or the agent's own credentials store, never from a file in the package. Add a row above.
 
 ## Releasing
 

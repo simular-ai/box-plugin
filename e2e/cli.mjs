@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 export const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 export function pinnedVersion() {
-  const skill = fs.readFileSync(path.join(REPO, 'claude', 'skills', 'box-offload', 'SKILL.md'), 'utf8')
+  const skill = fs.readFileSync(path.join(REPO, 'claude-code', 'skills', 'box-offload', 'SKILL.md'), 'utf8')
   const m = skill.match(/@simular-ai\/box@(\d+\.\d+\.\d+)/)
   if (!m) throw new Error('no exact @simular-ai/box@X.Y.Z pin in claude-code/skills/box-offload/SKILL.md')
   return m[1]

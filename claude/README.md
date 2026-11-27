@@ -21,7 +21,7 @@ Most agents need no plugin: add the MCP server `https://mcp.box.simular.ai/mcp` 
 
 ## Adding an agent
 
-Add a folder named after the agent with its own manifest, MCP config and, where the agent supports skills, a copy of `claude/skills/box/SKILL.md`. Point it at `https://mcp.box.simular.ai/mcp`. Use OAuth sign-in where the agent supports it; otherwise read a personal key from an environment variable or the agent's own credentials store, never from a file in the package. Add a row above.
+Add a folder named after the agent with its own manifest, MCP config and, where the agent supports skills, a copy of `claude-code/skills/box/SKILL.md`. Point it at `https://mcp.box.simular.ai/mcp`. Use OAuth sign-in where the agent supports it; otherwise read a personal key from an environment variable or the agent's own credentials store, never from a file in the package. Add a row above.
 
 ## Releasing
 
