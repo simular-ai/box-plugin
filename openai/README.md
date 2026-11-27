@@ -2,7 +2,7 @@
 
 The OpenAI plugin package: one listing covers ChatGPT and Codex. It connects the remote MCP server
 `https://mcp.box.simular.ai/mcp` with OAuth and ships two skills:
-`get-started` (onboarding) and `box` (a copy of `claude/skills/box/SKILL.md`).
+`get-started` (onboarding) and `box` (a copy of `claude-code/skills/box/SKILL.md`).
 
 Format: OpenAI's portable plugin layout (https://developers.openai.com/plugins/build/plugins):
 `plugin.json` with listing, review test cases and release notes under `extensions.com.openai`,

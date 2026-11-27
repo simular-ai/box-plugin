@@ -72,12 +72,12 @@ function seedOldClaudePlugin() {
   const bare = path.join(home, 'box-plugin-market.git')
   const git = (...args) => sh('git', ['-C', work, '-c', 'user.name=box e2e', '-c', 'user.email=e2e@box.invalid', '-c', 'commit.gpgsign=false', ...args])
   const copy = () => {
-    for (const d of ['.claude-plugin', 'claude']) fs.cpSync(path.join(REPO, d), path.join(work, d), { recursive: true })
+    for (const d of ['.claude-plugin', 'claude-code']) fs.cpSync(path.join(REPO, d), path.join(work, d), { recursive: true })
   }
   copy()
-  const mcp = path.join(work, 'claude', '.mcp.json')
+  const mcp = path.join(work, 'claude-code', '.mcp.json')
   fs.writeFileSync(mcp, fs.readFileSync(mcp, 'utf8').replace(URL_RE, 'relay.simular.cloud/mcp'))
-  const manifest = path.join(work, 'claude', '.claude-plugin', 'plugin.json')
+  const manifest = path.join(work, 'claude-code', '.claude-plugin', 'plugin.json')
   fs.writeFileSync(manifest, JSON.stringify({ ...JSON.parse(fs.readFileSync(manifest, 'utf8')), name: 'box', version: '0.0.1' }, null, 2))
   const market = path.join(work, '.claude-plugin', 'marketplace.json')
   const m = JSON.parse(fs.readFileSync(market, 'utf8'))

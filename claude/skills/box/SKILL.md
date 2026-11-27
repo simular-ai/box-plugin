@@ -23,11 +23,11 @@ The box tools act inside the box, and `read_file` reads text only. When the user
 - Upload a file: `npx -y @simular-ai/box@1.2.2 exec -c 'cat > /home/user/data.csv' < data.csv`
 - A folder, either way, with rsync. The host is the box's name from `box_list` (or `npx -y @simular-ai/box@1.2.2 ls`): `rsync -az -e "npx -y @simular-ai/box@1.2.2 rsh" main:/home/user/out/ ./out/`
 
-Send only what the user asked for: never a secret (`.env`, keys, credentials) unless the user names that file, and add `--exclude .env` when you rsync a folder up. Don't overwrite a local file without asking; pick a new name instead. `exec` uses the first box unless you add `--box <name>`. If the CLI says it isn't signed in, run `npx -y @simular-ai/box@1.2.2 login` and ask the user to allow it in the browser. Without a shell on the user's computer (ChatGPT, Claude on the web) there is no download yet: tell the user the file's path on the box.
+Send only what the user asked for, and never a secret (`.env`, keys, credentials, cloud or ssh config): add `--exclude .env` when you rsync a folder up. Don't overwrite a local file without asking; pick a new name instead. `exec` uses the first box unless you add `--box <name>`. If the CLI says it isn't signed in, run `npx -y @simular-ai/box@1.2.2 login` and ask the user to allow it in the browser. Without a shell on the user's computer (ChatGPT, Claude on the web) there is no download yet: tell the user the file's path on the box.
 
 ## Working with the user
 
 - The user can watch the box live and take over at https://box.simular.ai/box. Mention it for long tasks.
 - When a step needs the user (a sign-in, a password, a 2FA code, a captcha, a payment), stop and ask them to do it on that page, then continue. Never ask for passwords in chat.
-- When a site in the box's browser shows a sign-in page, don't ask the user for the password. If they use Chrome on a Mac, they can bring that site's sign-in into the box with the box desktop app (the box's Settings > Sign-ins > Import from Chrome) or by running `npx @simular-ai/box credentials import` in a terminal. Either way, they can also sign in themselves in the box's live view. You can only suggest the import, not start it, and some sites still ask to sign in after one.
+- When a site in the box's browser shows a sign-in page, don't ask the user for the password. Ask them to sign in themselves in the box's live view, then continue.
 - Report what you did and anything you saved on the box, with paths.

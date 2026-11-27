@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "simular-box",
-      "source": "./claude",
+      "source": "./claude-code",
       "description": "box by Simular: a cloud computer your agent drives over MCP."
     }
   ],

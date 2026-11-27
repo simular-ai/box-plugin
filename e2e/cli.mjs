@@ -1,6 +1,6 @@
 // The box CLI these tests run: the Rust `simular-box` from simular-ai/box-cli, at the exact
-// version the Claude plugin pins (claude/skills/box-offload/SKILL.md; CI keeps every pin under
-// claude/ on one version that is on npm). Set BOX_CLI to a binary to test another build, for
+// version the Claude plugin pins (claude-code/skills/box-offload/SKILL.md; CI keeps every pin under
+// claude/ and claude-code/ on one version that is on npm). Set BOX_CLI to a binary to test another build, for
 // example a local `target/release/simular-box` from a box-cli checkout.
 import fs from 'node:fs'
 import path from 'node:path'
@@ -9,9 +9,9 @@ import { fileURLToPath } from 'node:url'
 export const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 export function pinnedVersion() {
-  const skill = fs.readFileSync(path.join(REPO, 'claude', 'skills', 'box-offload', 'SKILL.md'), 'utf8')
+  const skill = fs.readFileSync(path.join(REPO, 'claude-code', 'skills', 'box-offload', 'SKILL.md'), 'utf8')
   const m = skill.match(/@simular-ai\/box@(\d+\.\d+\.\d+)/)
-  if (!m) throw new Error('no exact @simular-ai/box@X.Y.Z pin in claude/skills/box-offload/SKILL.md')
+  if (!m) throw new Error('no exact @simular-ai/box@X.Y.Z pin in claude-code/skills/box-offload/SKILL.md')
   return m[1]
 }
 
